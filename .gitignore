@@ -1,0 +1,16 @@
+# 原始 EPUB（82MB 二进制，不入库）
+*.epub
+
+# 生成数据与图片（可由 scripts/ 重新生成）
+data/
+web/public/data/
+web/public/images/
+web/public/images_orig/
+
+# Node
+node_modules/
+dist/
+*.local
+
+# macOS
+.DS_Store
