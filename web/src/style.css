@@ -1,0 +1,244 @@
+/* 中国通史学习站 · 全局样式 */
+:root {
+  /* 纸张主题（默认） */
+  --bg: #f6f1e7;
+  --bg-soft: #efe7d6;
+  --surface: #fbf8f0;
+  --text: #2b2620;
+  --text-soft: #6b6153;
+  --border: #d9cfba;
+  --accent: #8c1f1f;
+  --accent-soft: #a8483d;
+  --shadow: 0 2px 12px rgba(60, 40, 10, 0.08);
+}
+
+body[data-theme='sepia'] {
+  --bg: #efe0c7;
+  --bg-soft: #e4d0ab;
+  --surface: #f7ecd8;
+  --text: #43301a;
+  --text-soft: #7d6a4c;
+  --border: #cbb690;
+  --accent: #7a3b12;
+  --accent-soft: #96562a;
+}
+
+body[data-theme='dark'] {
+  --bg: #1e1d1b;
+  --bg-soft: #262420;
+  --surface: #2b2925;
+  --text: #e8e2d4;
+  --text-soft: #a89e8c;
+  --border: #43403a;
+  --accent: #d98b62;
+  --accent-soft: #c97a52;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'SimSun', serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.7;
+  transition: background 0.25s, color 0.25s;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 14px;
+}
+
+button:hover {
+  border-color: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* 顶栏 */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 10px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.app-header .brand {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 2px;
+  white-space: nowrap;
+}
+
+.app-header .brand small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-soft);
+  letter-spacing: 0;
+  margin-left: 8px;
+}
+
+.app-nav {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+
+.app-nav a {
+  padding: 6px 14px;
+  border-radius: 6px;
+  color: var(--text-soft);
+  font-size: 15px;
+}
+
+.app-nav a:hover {
+  color: var(--accent);
+  text-decoration: none;
+  background: var(--bg-soft);
+}
+
+.app-nav a.router-link-active {
+  color: var(--accent);
+  background: var(--bg-soft);
+  font-weight: 600;
+}
+
+.app-header .spacer {
+  flex: 1;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+/* 主题切换按钮组 */
+.theme-switch {
+  display: flex;
+  gap: 4px;
+}
+
+.theme-switch button {
+  padding: 3px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+}
+
+.theme-switch button.active {
+  background: var(--accent);
+  color: var(--surface);
+  border-color: var(--accent);
+}
+
+/* 章节卡片 */
+.chapter-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.chapter-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.chapter-card h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.chapter-card .summary {
+  color: var(--text-soft);
+  font-size: 13.5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0 0 8px;
+}
+
+.chapter-card .meta {
+  font-size: 12px;
+  color: var(--text-soft);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.chapter-card .dynasty-tag {
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 8px;
+  font-size: 12px;
+}
+
+/* 进度条 */
+.progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-soft);
+  overflow: hidden;
+}
+
+.progress-bar > div {
+  height: 100%;
+  background: var(--accent-soft);
+  transition: width 0.3s;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
