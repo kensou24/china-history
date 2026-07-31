@@ -42,20 +42,41 @@ function xOf(y) {
 const widthOf = (d) => Math.max(0, xOf(d.end) - xOf(d.start))
 
 const VIEW_W = 1000
-const VIEW_H = 96
-const BAR_Y = 10
-const BAR_H = 56
+const ROW_H = 56
+const ROW_GAP = 6
 
-// 可见范围内的朝代
-const visible = computed(() =>
+// 可见范围内的朝代（按时间排序）
+const ordered = computed(() =>
   props.dynasties
-    .map((d) => ({
-      ...d,
-      x: xOf(d.start),
-      w: widthOf(d),
-    }))
-    .filter((d) => d.w > 0.4),
+    .map((d) => ({ ...d, x: xOf(d.start), w: widthOf(d) }))
+    .filter((d) => d.w > 0.4)
+    .sort((a, b) => a.start - b.start),
 )
+
+// 贪心分层：并立朝代（时间重叠，如宋辽西夏金元）自动分配到不同行
+const layout = computed(() => {
+  const rows = []
+  for (const d of ordered.value) {
+    let placed = false
+    for (const row of rows) {
+      const last = row[row.length - 1]
+      if (last.end <= d.start) {
+        row.push(d)
+        placed = true
+        break
+      }
+    }
+    if (!placed) rows.push([d])
+  }
+  return rows
+})
+
+const visible = computed(() =>
+  layout.value.flatMap((row, ri) => row.map((d) => ({ ...d, row: ri }))),
+)
+
+const viewH = computed(() => layout.value.length * (ROW_H + ROW_GAP) + 26)
+const rowY = (row) => 6 + row * (ROW_H + ROW_GAP)
 
 const yearLabel = (y) => (y < 0 ? `前${-y}` : `${y}`)
 
@@ -195,7 +216,7 @@ const controlsVisible = computed(
     <!-- SVG 时间轴 -->
     <svg
       ref="svgRef"
-      :viewBox="`0 0 ${VIEW_W} ${VIEW_H}`"
+      :viewBox="`0 0 ${VIEW_W} ${viewH}`"
       class="axis-svg"
       @wheel.prevent="onWheel"
     >
@@ -206,9 +227,9 @@ const controlsVisible = computed(
       <g v-for="d in visible" :key="d.id">
         <rect
           :x="d.x"
-          :y="BAR_Y"
+          :y="rowY(d.row)"
           :width="d.w"
-          :height="BAR_H"
+          :height="ROW_H"
           rx="4"
           :fill="d.color"
           :class="{
@@ -228,7 +249,7 @@ const controlsVisible = computed(
         <text
           v-if="d.w > 52"
           :x="d.x + d.w / 2"
-          :y="BAR_Y + BAR_H / 2 - 4"
+          :y="rowY(d.row) + ROW_H / 2 - 4"
           text-anchor="middle"
           class="dyn-label"
         >
@@ -237,7 +258,7 @@ const controlsVisible = computed(
         <text
           v-if="d.w > 76"
           :x="d.x + d.w / 2"
-          :y="BAR_Y + BAR_H / 2 + 13"
+          :y="rowY(d.row) + ROW_H / 2 + 13"
           text-anchor="middle"
           class="dyn-years-label"
         >
@@ -250,15 +271,15 @@ const controlsVisible = computed(
         <line
           v-if="xOf(y) > 0 && xOf(y) < VIEW_W"
           :x1="xOf(y)"
-          y1="BAR_Y + BAR_H"
+          y1="ROW_H + ROW_GAP"
           :x2="xOf(y)"
-          y2="BAR_Y + BAR_H + 5"
+          y2="ROW_H + ROW_GAP + 5"
           class="tick"
         />
         <text
           v-if="xOf(y) > 0 && xOf(y) < VIEW_W"
           :x="xOf(y)"
-          :y="VIEW_H - 2"
+          :y="viewH - 2"
           text-anchor="middle"
           class="tick-label"
         >
