@@ -74,11 +74,15 @@ watch(
 
 onMounted(() => {
   loadChapter()
-  window.addEventListener('scroll', onScroll, { passive: true })
+  if (scrollEl.value) {
+    scrollEl.value.addEventListener('scroll', onScroll, { passive: true })
+  }
 })
 
 onUnmounted(() => {
-  window.removeEventListener('scroll', onScroll)
+  if (scrollEl.value) {
+    scrollEl.value.removeEventListener('scroll', onScroll)
+  }
 })
 
 function openLightbox(imgId, caption) {
