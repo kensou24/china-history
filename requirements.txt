@@ -1,0 +1,5 @@
+# 数据管线依赖
+Pillow>=10.0      # images.py（现有）
+shapely>=2.0      # map.py 几何运算
+pyproj>=3.5       # map.py Albers 投影
+pyshp>=2.3        # map.py 读取 Natural Earth shapefile
