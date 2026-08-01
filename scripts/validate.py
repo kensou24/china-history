@@ -22,6 +22,48 @@ ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 EXPECTED = {1: 16, 2: 23, 3: 23, 4: 13, 5: 25}
 VALID_T = {"p", "sec", "fig", "cap"}
+MAP_BUDGET = 1_200_000  # map.json 字节预算
+
+
+def validate_map():
+    m = json.loads((DATA / "map.json").read_text(encoding="utf-8"))
+    dynasties = json.loads((DATA / "dynasties.json").read_text(encoding="utf-8"))["dynasties"]
+    ids = [d["id"] for d in dynasties]
+    # basemap 字段
+    for k in ("coast", "rivers", "cities"):
+        if k not in m.get("basemap", {}):
+            errors.append(f"map.json basemap 缺 {k}")
+    if not m["basemap"]["coast"].startswith("M"):
+        errors.append("map.json coast path 异常")
+    # 25 朝代：必须出现在 dynastyMap 或 unmapped 之一
+    dm, un = m.get("dynastyMap", {}), set(m.get("unmapped", []))
+    for i in ids:
+        if i not in dm and i not in un:
+            errors.append(f"map.json 朝代 {i} 既不在 dynastyMap 也不在 unmapped")
+    for i in dm:
+        if i not in ids:
+            errors.append(f"map.json dynastyMap 含未知朝代 {i}")
+    # shapes 自洽
+    valid = set(ids) | {None}
+    boundaries = set()
+    for s in m.get("shapes", []):
+        if s["dyn"] not in valid:
+            errors.append(f"map.json shape「{s['n']}」dyn 非法: {s['dyn']}")
+        if not s["from"] <= s["to"]:  # 闭区间模型：from==to 为合法单年记录（中立政权）
+            errors.append(f"map.json shape「{s['n']}」年份区间非法")
+        if not s["d"].startswith("M"):
+            errors.append(f"map.json shape「{s['n']}」path 为空")
+        if len(s.get("bbox", [])) != 4 or len(s.get("label", [])) != 2:
+            errors.append(f"map.json shape「{s['n']}」缺 bbox/label")
+        boundaries.update((s["from"], s["to"]))
+    cy = m.get("changeYears", [])
+    if cy != sorted(set(cy)) or set(cy) != boundaries:
+        errors.append("map.json changeYears 与 shapes 边界不一致")
+    size = (DATA / "map.json").stat().st_size
+    if size > MAP_BUDGET:
+        errors.append(f"map.json 超预算: {size/1e6:.2f}MB > 1.2MB（调大 map.py 的 SIMPLIFY_M）")
+    print(f"地图: shapes {len(m['shapes'])} | 年份点 {len(cy)} | {size/1024:.0f}KB")
+
 
 errors, warnings = [], []
 
@@ -77,6 +119,12 @@ def main():
                         errors.append(f"{vc['id']} 缺缩略图: {img}.webp")
                     if not (DATA / "images_orig" / f"{img}.jpeg").exists():
                         errors.append(f"{vc['id']} 缺原图: {img}.jpeg")
+
+    # 6. 疆域地图（无 map.json 时跳过：仅有 EPUB 的管线使用方不需要它）
+    if (DATA / "map.json").exists():
+        validate_map()
+    else:
+        print("（无 map.json，跳过地图校验）")
 
     # 汇总
     total_chars = meta["book"]["totalChars"]
