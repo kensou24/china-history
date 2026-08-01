@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useMeta } from '@/composables/useMeta'
 import { useDebounce } from '@/composables/useDebounce'
 import { useProgressStore } from '@/stores/progress'
@@ -8,10 +9,15 @@ import AppLoading from '@/components/AppLoading.vue'
 import BackToTop from '@/components/BackToTop.vue'
 
 const { loadMeta, meta, dynasties, error, chapterById } = useMeta()
+const route = useRoute()
 const progress = useProgressStore()
 const loading = ref(true)
 const keyword = ref('')
 const debouncedKeyword = useDebounce(keyword, 250)
+
+const focusDynasty = computed(() =>
+  typeof route.query.d === 'string' ? route.query.d : '',
+)
 
 const continueChapter = computed(() => {
   if (!progress.lastRead) return null
@@ -78,6 +84,7 @@ onMounted(init)
       v-else
       :dynasties="dynasties.dynasties"
       :keyword="debouncedKeyword"
+      :focus-dynasty="focusDynasty"
       @update:keyword="keyword = $event"
     />
 
