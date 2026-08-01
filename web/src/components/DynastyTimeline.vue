@@ -198,15 +198,15 @@ function onPointerDown(e) {
   suppressClick.value = false
 }
 
-function onPointerMove(e) {
-  if (!pointers.has(e.pointerId)) return
-  const prev = pointers.get(e.pointerId)
-  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+function onPointerMove(ev) {
+  if (!pointers.has(ev.pointerId)) return
+  const prev = pointers.get(ev.pointerId)
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
 
   if (pointers.size === 2) {
     // pinch
     const pts = Array.from(pointers.values())
-    const prevPts = [prev, { x: e.clientX, y: e.clientY }]
+    const prevPts = [prev, { x: ev.clientX, y: ev.clientY }]
     // 简单处理：用当前两点距离与初始 pinch 距离比较
     if (dragStart.value && dragStart.value.pinchD0) {
       const d1 = distance(pts[0], pts[1])
@@ -217,7 +217,7 @@ function onPointerMove(e) {
   }
 
   if (pointers.size === 1 && dragStart.value) {
-    const dx = e.clientX - dragStart.value.x
+    const dx = ev.clientX - dragStart.value.x
     if (Math.abs(dx) > 4) suppressClick.value = true
     const rect = svgRef.value.getBoundingClientRect()
     const span = dragStart.value.yearEnd - dragStart.value.yearStart
@@ -455,9 +455,9 @@ const controlsVisible = computed(
         <line
           v-if="xOf(y) > 0 && xOf(y) < VIEW_W"
           :x1="xOf(y)"
-          y1="ROW_H + ROW_GAP"
+          :y1="ROW_H + ROW_GAP"
           :x2="xOf(y)"
-          y2="ROW_H + ROW_GAP + 5"
+          :y2="ROW_H + ROW_GAP + 5"
           class="tick"
         />
         <text
