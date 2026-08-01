@@ -114,6 +114,9 @@ function retry() {
   loadChapter()
 }
 
+// 进度恢复提示：本次会话内每章只提示一次
+const restoreToasted = new Set()
+
 function restoreScroll() {
   const id = chapter.value?.id
   if (!id || !scrollEl.value) return
@@ -121,10 +124,14 @@ function restoreScroll() {
   if (pct >= 2 && pct < 98) {
     nextTick(() => {
       const el = scrollEl.value
+      if (!el) return
       const max = el.scrollHeight - el.clientHeight
       if (max > 0) {
         el.scrollTop = (pct / 100) * max
-        toast(`已从上次阅读的 ${Math.round(pct)}% 处继续`)
+        if (!restoreToasted.has(id)) {
+          restoreToasted.add(id)
+          toast(`已从上次阅读的 ${Math.round(pct)}% 处继续`)
+        }
       }
     })
   }
@@ -158,7 +165,8 @@ function flushRecord() {
   recordTimer = null
   if (!chapter.value) return
   scrollPct.value = currentPct()
-  progress.record(chapter.value.id, scrollPct.value)
+  const isNewFinish = progress.record(chapter.value.id, scrollPct.value)
+  if (isNewFinish) toast(`✓ 已读完《${chapter.value.title}》`)
 }
 
 watch(
