@@ -17,6 +17,7 @@ import Lightbox from '@/components/Lightbox.vue'
 import AppLoading from '@/components/AppLoading.vue'
 import BackToTop from '@/components/BackToTop.vue'
 import DynastyRail from '@/components/DynastyRail.vue'
+import { yearLabel, reducedMotion } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -65,14 +66,20 @@ const dynasty = computed(() =>
   chapter.value ? dynastyById(chapter.value.dynasty) : null,
 )
 
+// 加载序号：慢网络下跨卷快速翻章时，丢弃过期请求的结果，避免旧章覆盖新章
+let loadSeq = 0
+
 async function loadChapter() {
+  const seq = ++loadSeq
+  const id = route.params.id
   error.value = null
   notFound.value = false
   imageLoaded.value = {}
   try {
     await loadMeta()
+    if (seq !== loadSeq) return
     if (metaError.value) throw new Error(metaError.value)
-    const ch = chapterById(route.params.id)
+    const ch = chapterById(id)
     if (!ch) {
       notFound.value = true
       return
@@ -83,15 +90,17 @@ async function loadChapter() {
     // 同卷内翻章不闪 loading，章节内容直接带方向过渡切换
     if (currentVol.value !== volId) {
       loading.value = true
-      volData.value = await loadVolume(volId)
+      const data = await loadVolume(volId)
+      if (seq !== loadSeq) return // 竞态：已有更新的加载在进行
+      volData.value = data
       currentVol.value = volId
     }
     const vc = volData.value.chapters.find((c) => c.id === ch.id)
     chapter.value = { ...ch, blocks: vc.blocks }
   } catch (e) {
-    error.value = e.message || '章节加载失败'
+    if (seq === loadSeq) error.value = e.message || '章节加载失败'
   } finally {
-    loading.value = false
+    if (seq === loadSeq) loading.value = false
   }
 }
 
@@ -115,19 +124,35 @@ function restoreScroll() {
   }
 }
 
-// 滚动 → 进度记录（节流）
-let scrollTimer = null
+// 滚动 → 进度条即时更新（rAF 合帧）；持久化延迟到停止滚动 400ms 后，
+// 避免滚动期间高频写 localStorage，也让进度条跟手
+let recordTimer = null
+let rafId = null
+
+function currentPct() {
+  const el = scrollEl.value
+  if (!el) return scrollPct.value
+  const max = el.scrollHeight - el.clientHeight
+  return max > 0 ? (el.scrollTop / max) * 100 : 100
+}
+
 function onScroll() {
-  if (scrollTimer) return
-  scrollTimer = setTimeout(() => {
-    scrollTimer = null
-    const el = scrollEl.value
-    if (!el || !chapter.value) return
-    const max = el.scrollHeight - el.clientHeight
-    const pct = max > 0 ? (el.scrollTop / max) * 100 : 100
-    scrollPct.value = pct
-    progress.record(chapter.value.id, pct)
-  }, 400)
+  if (!rafId) {
+    rafId = requestAnimationFrame(() => {
+      rafId = null
+      scrollPct.value = currentPct()
+    })
+  }
+  clearTimeout(recordTimer)
+  recordTimer = setTimeout(flushRecord, 400)
+}
+
+function flushRecord() {
+  clearTimeout(recordTimer)
+  recordTimer = null
+  if (!chapter.value) return
+  scrollPct.value = currentPct()
+  progress.record(chapter.value.id, scrollPct.value)
 }
 
 watch(
@@ -194,6 +219,8 @@ onUnmounted(() => {
   if (scrollEl.value) {
     scrollEl.value.removeEventListener('scroll', onScroll)
   }
+  if (rafId) cancelAnimationFrame(rafId)
+  flushRecord() // 滚动后 400ms 内离开页面也能保住进度
   revealObserver?.disconnect()
   window.removeEventListener('keydown', onWindowKey)
   narrowMq?.removeEventListener('change', onNarrowChange)
@@ -228,18 +255,15 @@ function scrollByPage(dir) {
   el.scrollBy({ top: amount, behavior: reducedMotion() ? 'auto' : 'smooth' })
 }
 
-function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
 function onWindowKey(e) {
   if (lightbox.value.visible) return
   if (e.key === 'Escape' && drawerOpen.value) {
     drawerOpen.value = false
     return
   }
+  // 表单控件与按钮放行：空格在按钮上是激活，不能抢成滚屏
   const tag = e.target?.tagName
-  if (tag === 'INPUT' || tag === 'TEXTAREA') return
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT') return
   if (e.key === 'ArrowLeft') {
     e.preventDefault()
     goPrev()
@@ -260,8 +284,6 @@ function onWindowKey(e) {
     if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
   }
 }
-
-const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
 </script>
 
 <template>
@@ -301,7 +323,7 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
       <div class="ch-title-row">
         <h1 class="ch-title">{{ chapter.title }}</h1>
         <span v-if="dynasty" class="dynasty-tag" :style="{ background: dynasty.color + '22', color: dynasty.color }">
-          {{ dynasty.name }} {{ formatYear(dynasty.start) }}—{{ formatYear(dynasty.end) }}
+          {{ dynasty.name }} {{ yearLabel(dynasty.start) }}—{{ yearLabel(dynasty.end) }}
         </span>
       </div>
       <div class="ch-meta">
@@ -586,6 +608,7 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   border-radius: 12px;
   padding: 40px 48px;
   max-height: calc(100vh - 260px);
+  max-height: calc(100dvh - 260px); /* dvh：移动端地址栏伸缩时高度不跳 */
   overflow-y: auto;
   box-shadow: var(--shadow);
   transition: font-size 0.2s, line-height 0.2s, background 0.25s, border-color 0.25s;
@@ -755,6 +778,7 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   .reader-body {
     padding: 20px 18px;
     max-height: calc(100vh - 240px);
+    max-height: calc(100dvh - 240px);
   }
 
   .ch-title {
