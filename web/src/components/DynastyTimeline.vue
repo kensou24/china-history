@@ -198,8 +198,44 @@ function onPointerDown(e) {
   suppressClick.value = false
 }
 
+// 命中检测：把视口坐标转成 SVG 用户坐标，找到包含该点的朝代块
+function dynastyAtClient(cx, cy) {
+  const svg = svgRef.value
+  if (!svg) return null
+  const ctm = svg.getScreenCTM()
+  if (!ctm) return null
+  const pt = svg.createSVGPoint()
+  pt.x = cx
+  pt.y = cy
+  const p = pt.matrixTransform(ctm.inverse())
+  return (
+    visible.value.find((d) => {
+      const y0 = rowY(d.row)
+      return p.x >= d.x && p.x <= d.x + d.w && p.y >= y0 && p.y <= y0 + ROW_H
+    }) || null
+  )
+}
+
 function onPointerMove(ev) {
-  if (!pointers.has(ev.pointerId)) return
+  if (!pointers.has(ev.pointerId)) {
+    // 未按下（hover）：命中检测显示 tooltip
+    const d = dynastyAtClient(ev.clientX, ev.clientY)
+    if (d) {
+      hover.value = d
+      const rect = svgRef.value.getBoundingClientRect()
+      tooltip.value = {
+        x: ev.clientX - rect.left,
+        y: ev.clientY - rect.top,
+        visible: true,
+        d,
+      }
+      clampTooltip()
+    } else {
+      hover.value = null
+      tooltip.value.visible = false
+    }
+    return
+  }
   const prev = pointers.get(ev.pointerId)
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
 
@@ -245,8 +281,15 @@ function onPointerMove(ev) {
 
 function onPointerUp(e) {
   if (svgRef.value) svgRef.value.releasePointerCapture(e.pointerId)
+  const wasPinch = !!(dragStart.value && dragStart.value.pinchD0)
+  const wasDrag = suppressClick.value
   pointers.delete(e.pointerId)
   dragStart.value = null
+  // 点击选择：单指抬起、未拖拽、未捏合时按命中检测选择朝代
+  if (!wasDrag && !wasPinch && pointers.size === 0) {
+    const d = dynastyAtClient(e.clientX, e.clientY)
+    if (d) select(d)
+  }
 }
 
 function onPointerCancel(e) {
@@ -280,18 +323,6 @@ async function clampTooltip() {
   if (y + tRect.height > sRect.height) y = sRect.height - tRect.height - 8
   if (y < 0) y = 8
   tooltip.value = { ...tooltip.value, x, y }
-}
-
-function onMove(d, e) {
-  hover.value = d
-  const rect = svgRef.value.getBoundingClientRect()
-  tooltip.value = {
-    x: e.clientX - rect.left,
-    y: e.clientY - rect.top,
-    visible: true,
-    d,
-  }
-  clampTooltip()
 }
 
 function onLeave() {
@@ -398,6 +429,7 @@ const controlsVisible = computed(
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
       @pointercancel="onPointerCancel"
+      @pointerleave="onLeave"
     >
       <!-- 年份刻度 -->
       <line :x1="xOf(view.start)" y1="0" :x2="xOf(view.end)" y2="0" class="axis-line" />
@@ -421,9 +453,6 @@ const controlsVisible = computed(
           role="button"
           :aria-label="`${d.name} ${yearLabel(d.start)}—${yearLabel(d.end)}`"
           :aria-pressed="selected?.id === d.id"
-          @mousemove="onMove(d, $event)"
-          @mouseleave="onLeave"
-          @click="select(d)"
           @keydown="onDynKey($event, d)"
         >
           <title>{{ d.name }} {{ yearLabel(d.start) }}—{{ yearLabel(d.end) }}</title>
