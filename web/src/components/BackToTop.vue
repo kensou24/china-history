@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { reducedMotion } from '@/utils'
 
 const props = defineProps({
   target: { type: [Object, String], default: 'window' },
@@ -8,10 +9,6 @@ const props = defineProps({
 
 const visible = ref(false)
 let el = null
-
-function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 function check() {
   if (!el) return

@@ -118,8 +118,10 @@ watch(
   cursor: pointer;
 }
 
-.lightbox .close-btn:hover {
-  color: #fff;
+@media (hover: hover) {
+  .lightbox .close-btn:hover {
+    color: #fff;
+  }
 }
 
 .img-wrap {

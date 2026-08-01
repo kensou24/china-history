@@ -83,8 +83,11 @@ a {
   transition: color 0.15s, background 0.15s;
 }
 
-a:hover {
-  text-decoration: underline;
+/* hover 反馈只在有悬停能力的设备上生效，避免触屏点按后高亮/下划线粘住 */
+@media (hover: hover) {
+  a:hover {
+    text-decoration: underline;
+  }
 }
 
 button {
@@ -99,9 +102,11 @@ button {
   transition: border-color 0.15s, color 0.15s, background 0.15s, transform 0.1s;
 }
 
-button:hover {
-  border-color: var(--accent-soft);
-  color: var(--accent);
+@media (hover: hover) {
+  button:hover {
+    border-color: var(--accent-soft);
+    color: var(--accent);
+  }
 }
 
 button:active {
@@ -170,10 +175,12 @@ input:focus-visible,
   transform: scale(0.94);
 }
 
-.app-nav a:hover {
-  color: var(--accent);
-  text-decoration: none;
-  background: var(--bg-soft);
+@media (hover: hover) {
+  .app-nav a:hover {
+    color: var(--accent);
+    text-decoration: none;
+    background: var(--bg-soft);
+  }
 }
 
 .app-nav a.router-link-active {
@@ -221,9 +228,11 @@ input:focus-visible,
   transition: transform 0.15s, box-shadow 0.15s, background 0.25s, border-color 0.25s;
 }
 
-.chapter-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
+@media (hover: hover) {
+  .chapter-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
 }
 
 .chapter-card:active {

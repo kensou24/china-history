@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useMeta } from '@/composables/useMeta'
 import { useProgressStore } from '@/stores/progress'
 import { useSettingsStore } from '@/stores/settings'
+import { yearLabel, reducedMotion } from '@/utils'
 
 // 阅读页左侧竖向朝代导航轨：
 // 等距行 + 竖脊线（比例轴下短朝代点不中，故不做比例尺），
@@ -31,12 +32,7 @@ const currentDynasty = computed(() =>
   rows.value.find((d) => d.id === currentDynastyId.value) || null,
 )
 
-const yearLabel = (y) => (y < 0 ? `前${-y}` : `${y}`)
 const chaptersOf = (d) => d.chapterIds.map((id) => chapterById(id)).filter(Boolean)
-
-function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 // hover 联动：时间重叠的并立政权一起点亮，其余压暗（与主时间轴聚光灯同一语言）
 const litIds = computed(() => {
@@ -157,6 +153,7 @@ onMounted(() => focusCurrent(false))
   top: 76px;
   width: 236px;
   max-height: calc(100vh - 100px);
+  max-height: calc(100dvh - 100px);
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -239,8 +236,10 @@ onMounted(() => focusCurrent(false))
   transition: background 0.15s;
 }
 
-.dyn-btn:hover {
-  background: var(--bg-soft);
+@media (hover: hover) {
+  .dyn-btn:hover {
+    background: var(--bg-soft);
+  }
 }
 
 .rail-row.linked .dyn-btn {
@@ -311,10 +310,12 @@ onMounted(() => focusCurrent(false))
   line-height: 1.35;
 }
 
-.sub-item:hover {
-  background: var(--bg-soft);
-  color: var(--accent);
-  text-decoration: none;
+@media (hover: hover) {
+  .sub-item:hover {
+    background: var(--bg-soft);
+    color: var(--accent);
+    text-decoration: none;
+  }
 }
 
 .sub-item.active {
@@ -371,9 +372,11 @@ onMounted(() => focusCurrent(false))
   color: var(--text-soft);
 }
 
-.rail-expand:hover {
-  color: var(--accent);
-  background: var(--bg-soft);
+@media (hover: hover) {
+  .rail-expand:hover {
+    color: var(--accent);
+    background: var(--bg-soft);
+  }
 }
 
 .vert-text {

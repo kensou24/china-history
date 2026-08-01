@@ -5,6 +5,7 @@ import { useDebounce } from '@/composables/useDebounce'
 import { useProgressStore } from '@/stores/progress'
 import DynastyTimeline from '@/components/DynastyTimeline.vue'
 import AppLoading from '@/components/AppLoading.vue'
+import BackToTop from '@/components/BackToTop.vue'
 
 const { loadMeta, meta, dynasties, error, chapterById } = useMeta()
 const progress = useProgressStore()
@@ -37,8 +38,11 @@ onMounted(init)
   <div class="home">
     <h1 class="page-title">中国通史 · 朝代时间轴</h1>
     <p class="page-sub">
-      全书 {{ meta?.book.chapters }} 章 · {{ (meta?.book.totalChars / 10000).toFixed(1) }} 万字
-      · {{ meta?.book.totalImages }} 幅插图 —— 点击朝代查看所属章节
+      <template v-if="meta">
+        全书 {{ meta.book.chapters }} 章 · {{ (meta.book.totalChars / 10000).toFixed(1) }} 万字
+        · {{ meta.book.totalImages }} 幅插图 —— 点击朝代查看所属章节
+      </template>
+      <template v-else>五卷本 · 以朝代时间轴为核心导航</template>
     </p>
 
     <input
@@ -75,6 +79,8 @@ onMounted(init)
       :dynasties="dynasties.dynasties"
       :keyword="debouncedKeyword"
     />
+
+    <BackToTop />
   </div>
 </template>
 

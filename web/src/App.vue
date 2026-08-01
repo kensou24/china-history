@@ -3,7 +3,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useProgressStore } from '@/stores/progress'
 import { useToast } from '@/composables/useToast'
-import BackToTop from '@/components/BackToTop.vue'
+import { reducedMotion } from '@/utils'
 
 const settings = useSettingsStore()
 const progress = useProgressStore()
@@ -18,8 +18,7 @@ const themes = [
 function setTheme(t, animate = false) {
   settings.setTheme(t)
   // 切换瞬间挂过渡类，全站颜色 300ms 渐变；首次加载与 reduced-motion 不触发
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (animate && !reduce) {
+  if (animate && !reducedMotion()) {
     document.body.classList.add('theme-anim')
     setTimeout(() => document.body.classList.remove('theme-anim'), 350)
   }
@@ -100,8 +99,6 @@ onUnmounted(() => {
       <div v-for="t in toasts" :key="t.id" class="toast">{{ t.message }}</div>
     </TransitionGroup>
   </div>
-
-  <BackToTop />
 </template>
 
 <style scoped>

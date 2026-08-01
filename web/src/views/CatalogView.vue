@@ -5,6 +5,7 @@ import { useProgressStore } from '@/stores/progress'
 import { useDebounce } from '@/composables/useDebounce'
 import AppLoading from '@/components/AppLoading.vue'
 import BackToTop from '@/components/BackToTop.vue'
+import { reducedMotion } from '@/utils'
 
 const { loadMeta, meta, dynastyById, error } = useMeta()
 const progress = useProgressStore()
@@ -58,10 +59,6 @@ function clearSearch() {
 
 // ---- 卡片滚动浮现 ----
 let cardObserver = null
-
-function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
 
 // 进入视口的卡片按批次 35ms 级联浮现；筛选变化后重挂观察（只补未揭示的新卡）
 function setupCardReveal() {
@@ -242,8 +239,10 @@ watch(filteredVolumes, setupCardReveal)
   transform: none;
 }
 
-.chapter-card.card-shown:hover {
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .chapter-card.card-shown:hover {
+    transform: translateY(-2px);
+  }
 }
 
 .chapter-card.card-shown:active {
