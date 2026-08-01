@@ -29,6 +29,28 @@ function scaleYear(y) {
   return PRE_FRAC + ((y - T_PRE_END) / (T_LIN_END - T_PRE_END)) * (1 - PRE_FRAC)
 }
 
+// scale(0..1) → 年份（全史范围反向映射，minimap 定位用）
+function yearFromScale(t) {
+  if (t <= PRE_FRAC) {
+    return T_PRE_START + (t / PRE_FRAC) * (T_PRE_END - T_PRE_START)
+  }
+  return T_PRE_END + ((t - PRE_FRAC) / (1 - PRE_FRAC)) * (T_LIN_END - T_PRE_END)
+}
+
+// 把给定起点与跨度夹进全史边界
+function clampWindow(s, span) {
+  let e = s + span
+  if (s < T_PRE_START) {
+    e += T_PRE_START - s
+    s = T_PRE_START
+  }
+  if (e > T_LIN_END) {
+    s -= e - T_LIN_END
+    e = T_LIN_END
+  }
+  return { start: Math.max(T_PRE_START, s), end: Math.min(T_LIN_END, e) }
+}
+
 // 视图窗口（年份），默认全史
 const view = ref({ start: T_PRE_START, end: T_LIN_END })
 const targetView = ref(null)
@@ -116,6 +138,24 @@ const rowY = (row) => 6 + row * (ROW_H + ROW_GAP)
 
 const yearLabel = (y) => (y < 0 ? `前${-y}` : `${y}`)
 
+// ---- 自适应年代刻度：按视野跨度选步长，保持屏上约 6~10 个刻度 ----
+const TICK_STEPS = [10, 25, 50, 100, 200, 500, 1000]
+const ticks = computed(() => {
+  const span = view.value.end - view.value.start
+  const step = TICK_STEPS.find((s) => span / s <= 10) || 1000
+  const first = Math.ceil(view.value.start / step) * step
+  const out = []
+  for (let y = first; y <= view.value.end; y += step) out.push(y)
+  return out
+})
+
+// HUD：当前视野年代读数（拖拽/缩放时实时跳动）
+const viewRangeLabel = computed(() => {
+  const s = Math.round(view.value.start)
+  const e = Math.round(view.value.end)
+  return `${yearLabel(s)} — ${yearLabel(e)} · ${e - s} 年`
+})
+
 // ---- 缩放 ----
 function zoom(factor, centerYear, animate = true, dur = 350) {
   const cur = targetView.value || view.value
@@ -127,18 +167,7 @@ function zoom(factor, centerYear, animate = true, dur = 350) {
     return
   }
   const c = centerYear ?? (cur.start + cur.end) / 2
-  const half = newSpan / 2
-  let s = c - half
-  let e = c + half
-  if (s < T_PRE_START) {
-    e += T_PRE_START - s
-    s = T_PRE_START
-  }
-  if (e > T_LIN_END) {
-    s -= e - T_LIN_END
-    e = T_LIN_END
-  }
-  setView({ start: Math.max(T_PRE_START, s), end: Math.min(T_LIN_END, e) }, animate, dur)
+  setView(clampWindow(c - newSpan / 2, newSpan), animate, dur)
 }
 
 function zoomIn() {
@@ -182,12 +211,7 @@ function yearAtClientX(cx) {
   const ratio = (cx - rect.left) / rect.width
   const s = scaleYear(view.value.start)
   const e = scaleYear(view.value.end)
-  const targetScale = s + (e - s) * ratio
-  // 反向映射
-  if (targetScale <= PRE_FRAC) {
-    return T_PRE_START + (targetScale / PRE_FRAC) * (T_PRE_END - T_PRE_START)
-  }
-  return T_PRE_END + ((targetScale - PRE_FRAC) / (1 - PRE_FRAC)) * (T_LIN_END - T_PRE_END)
+  return yearFromScale(s + (e - s) * ratio)
 }
 
 // 滚轮缩放（以鼠标位置为锚点，短时长缓动让连续滚动平滑追赶目标）
@@ -443,7 +467,22 @@ const litIds = computed(() => {
 
 function select(d) {
   if (suppressClick.value) return
-  selected.value = selected.value?.id === d.id ? null : d
+  if (selected.value?.id === d.id) {
+    selected.value = null
+    return
+  }
+  selected.value = d
+  // 选中即运镜居中：小朝代推近到其跨度 2 倍（至少 160 年），但不主动拉远
+  const span = view.value.end - view.value.start
+  const targetSpan = Math.min(Math.max((d.end - d.start) * 2, 160), span)
+  const mid = (d.start + d.end) / 2
+  setView(clampWindow(mid - targetSpan / 2, targetSpan), true, 420)
+}
+
+// 双击空白处快速放大（点在朝代上不抢点击/聚光灯）
+function onDblClick(e) {
+  if (dynastyAtClient(e.clientX, e.clientY)) return
+  zoom(0.5, yearAtClientX(e.clientX), true, 300)
 }
 
 function onKey(e) {
@@ -499,6 +538,76 @@ const hasMatch = computed(() => {
   })
 })
 
+// ---- 迷你地图：全史缩略 + 当前视野框，点击跳转、拖拽平移 ----
+const MINI_ROW = 9
+const MINI_GAP = 2
+const miniSvgRef = ref(null)
+
+const miniRows = computed(() => {
+  const rows = []
+  const sorted = [...props.dynasties].sort((a, b) => a.start - b.start)
+  for (const d of sorted) {
+    let placed = false
+    for (const row of rows) {
+      if (row[row.length - 1].end <= d.start) {
+        row.push(d)
+        placed = true
+        break
+      }
+    }
+    if (!placed) rows.push([d])
+  }
+  return rows
+})
+
+const miniH = computed(() => miniRows.value.length * (MINI_ROW + MINI_GAP) + 6)
+const miniX = (y) => scaleYear(y) * VIEW_W
+const miniW = (d) => Math.max(2, miniX(d.end) - miniX(d.start))
+
+const miniViewRect = computed(() => ({
+  x: scaleYear(view.value.start) * VIEW_W,
+  w: Math.max(6, (scaleYear(view.value.end) - scaleYear(view.value.start)) * VIEW_W),
+}))
+
+// 抓取点相对视野中心的年偏移：抓住视野框内部拖不跳变，点框外则以点击处为中心
+let miniDrag = null
+
+function miniYear(e) {
+  const rect = miniSvgRef.value.getBoundingClientRect()
+  const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+  return yearFromScale(ratio)
+}
+
+function miniApply(e) {
+  const span = view.value.end - view.value.start
+  const center = miniYear(e) - (miniDrag?.offset || 0)
+  const w = clampWindow(center - span / 2, span)
+  cancelAnimationFrame(animId)
+  clearTimeout(flightTimer)
+  stopMomentum()
+  view.value = w
+  targetView.value = { ...w }
+}
+
+function onMiniDown(e) {
+  if (!miniSvgRef.value) return
+  e.preventDefault()
+  miniSvgRef.value.setPointerCapture(e.pointerId)
+  const y = miniYear(e)
+  const inside = y >= view.value.start && y <= view.value.end
+  miniDrag = { offset: inside ? y - (view.value.start + view.value.end) / 2 : 0 }
+  miniApply(e)
+}
+
+function onMiniMove(e) {
+  if (miniDrag) miniApply(e)
+}
+
+function onMiniUp(e) {
+  miniSvgRef.value?.releasePointerCapture(e.pointerId)
+  miniDrag = null
+}
+
 const isTouch = ref(false)
 
 onMounted(() => {
@@ -538,6 +647,7 @@ const controlsVisible = computed(
       role="img"
       aria-label="朝代时间轴"
       @wheel.prevent="onWheel"
+      @dblclick="onDblClick"
       @pointerdown="onPointerDownPinch"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
@@ -546,6 +656,17 @@ const controlsVisible = computed(
     >
       <!-- 年份刻度 -->
       <line :x1="xOf(view.start)" y1="0" :x2="xOf(view.end)" y2="0" class="axis-line" />
+
+      <!-- 自适应网格线（朝代块之下） -->
+      <line
+        v-for="y in ticks"
+        :key="y"
+        class="grid-line"
+        :x1="xOf(y)"
+        y1="0"
+        :x2="xOf(y)"
+        :y2="viewH - 16"
+      />
 
       <!-- 朝代区块 -->
       <g
@@ -600,29 +721,60 @@ const controlsVisible = computed(
         </text>
       </g>
 
-      <!-- 底部年份刻度线 -->
-      <g v-for="y in [-2070, -221, 0, 220, 618, 960, 1271, 1644, 1912]" :key="y">
-        <line
-          v-if="xOf(y) > 0 && xOf(y) < VIEW_W"
-          :x1="xOf(y)"
-          :y1="ROW_H + ROW_GAP"
-          :x2="xOf(y)"
-          :y2="ROW_H + ROW_GAP + 5"
-          class="tick"
-        />
-        <text
-          v-if="xOf(y) > 0 && xOf(y) < VIEW_W"
-          :x="xOf(y)"
-          :y="viewH - 2"
-          text-anchor="middle"
-          class="tick-label"
-        >
-          {{ yearLabel(y) }}
-        </text>
-      </g>
+      <!-- 底部自适应刻度标签（夹边防止溢出） -->
+      <text
+        v-for="y in ticks"
+        :key="'l' + y"
+        :x="Math.min(984, Math.max(16, xOf(y)))"
+        :y="viewH - 3"
+        text-anchor="middle"
+        class="tick-label"
+      >
+        {{ yearLabel(y) }}
+      </text>
     </svg>
-    <div class="axis-hint">
-      {{ isTouch ? '拖动平移 · 双指缩放 · 点按查看章节' : '滚轮缩放 · 点击朝代查看章节 · Esc 复位' }}
+
+    <!-- 迷你地图：全史缩略，点击跳转、拖拽平移 -->
+    <svg
+      ref="miniSvgRef"
+      :viewBox="`0 0 ${VIEW_W} ${miniH}`"
+      class="mini-map"
+      role="img"
+      aria-label="全史缩略导航"
+      @pointerdown="onMiniDown"
+      @pointermove="onMiniMove"
+      @pointerup="onMiniUp"
+      @pointercancel="onMiniUp"
+    >
+      <g v-for="(row, ri) in miniRows" :key="ri">
+        <rect
+          v-for="d in row"
+          :key="d.id"
+          :x="miniX(d.start)"
+          :y="3 + ri * (MINI_ROW + MINI_GAP)"
+          :width="miniW(d)"
+          :height="MINI_ROW"
+          :fill="d.color"
+          rx="1.5"
+          class="mini-dyn"
+          :class="{ 'mini-active': selected?.id === d.id }"
+        />
+      </g>
+      <rect
+        class="mini-view"
+        :x="miniViewRect.x"
+        y="1"
+        :width="miniViewRect.w"
+        :height="miniH - 2"
+        rx="3"
+      />
+    </svg>
+
+    <div class="axis-footer">
+      <span class="axis-hint">
+        {{ isTouch ? '拖动平移 · 双指缩放 · 点按查看章节 · 缩略图可拖' : '滚轮缩放 · 双击放大 · 点击朝代查看章节 · Esc 复位' }}
+      </span>
+      <span class="view-hud" aria-hidden="true">{{ viewRangeLabel }}</span>
     </div>
 
     <!-- hover 信息卡 -->
@@ -761,14 +913,67 @@ const controlsVisible = computed(
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
-.tick {
-  stroke: var(--text-soft);
+.grid-line {
+  stroke: var(--border);
   stroke-width: 1;
+  opacity: 0.35;
+  pointer-events: none;
 }
 
 .tick-label {
   font-size: 9.5px;
   fill: var(--text-soft);
+  pointer-events: none;
+}
+
+/* 迷你地图 */
+.mini-map {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin-top: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.mini-dyn {
+  opacity: 0.75;
+}
+
+.mini-dyn.mini-active {
+  opacity: 1;
+  stroke: var(--text);
+  stroke-width: 1;
+}
+
+.mini-view {
+  fill: rgba(127, 127, 127, 0.12);
+  stroke: var(--text-soft);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.axis-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.axis-footer .axis-hint {
+  margin-top: 0;
+}
+
+.view-hud {
+  font-size: 12px;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .axis-hint {
@@ -791,6 +996,14 @@ const controlsVisible = computed(
   gap: 2px;
   pointer-events: none;
   white-space: nowrap;
+  animation: tip-in 0.15s ease;
+}
+
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 
 .dyn-chapters {
