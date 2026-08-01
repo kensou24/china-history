@@ -682,6 +682,7 @@ function onWindowKey(e) {
 }
 
 .reader-body {
+  position: relative; /* 成为 .block-sec 的 offsetParent：offsetTop 与 scrollTop 同坐标系（TOC 跳转/高亮基准） */
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;

@@ -21,6 +21,9 @@ const themes = [
 // auto 档跟随系统深浅色；body[data-theme] 只写解析后的具体主题
 const systemDark = window.matchMedia('(prefers-color-scheme: dark)')
 
+// 主题背景色映射（与 index.html 防闪脚本一致）
+const THEME_BG = { paper: '#f6f1e7', sepia: '#efe0c7', dark: '#1e1d1b' }
+
 const resolveTheme = (t) =>
   t === 'auto' ? (systemDark.matches ? 'dark' : 'paper') : t
 
@@ -30,7 +33,12 @@ function applyTheme(t, animate = false) {
     document.body.classList.add('theme-anim')
     setTimeout(() => document.body.classList.remove('theme-anim'), 350)
   }
-  document.body.dataset.theme = resolveTheme(t)
+  const r = resolveTheme(t)
+  document.body.dataset.theme = r
+  // 同步 html 背景与 --bg：首帧（CSS 未应用前）与过滚动区域都用对的主题色
+  const c = THEME_BG[r] || THEME_BG.paper
+  document.documentElement.style.background = c
+  document.documentElement.style.setProperty('--bg', c)
 }
 
 function setTheme(t, animate = false) {
