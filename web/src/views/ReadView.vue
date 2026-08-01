@@ -542,11 +542,15 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   border: 1px solid var(--border);
   background: var(--bg-soft);
   opacity: 0;
-  transition: opacity 0.3s;
+  filter: blur(10px);
+  transform: scale(1.02);
+  transition: opacity 0.4s ease, filter 0.4s ease, transform 0.4s ease;
 }
 
 .block-fig img.loaded {
   opacity: 1;
+  filter: blur(0);
+  transform: none;
 }
 
 .block-fig figcaption {
@@ -652,6 +656,8 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   .block-fig img {
     transition: none;
     opacity: 1;
+    filter: none;
+    transform: none;
   }
 
   /* 减少动态时段落直接显示（JS 侧也不会启动观察器） */

@@ -1,4 +1,5 @@
 <script setup>
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import { useProgressStore } from '@/stores/progress'
 import { useToast } from '@/composables/useToast'
@@ -26,10 +27,44 @@ function setTheme(t, animate = false) {
 }
 
 setTheme(settings.theme)
+
+// ---- 顶栏自动隐藏：下滚隐藏、上滚浮现 ----
+// capture 阶段监听，可同时捕获 reader-body 等内部滚动容器的 scroll 事件
+const headerHidden = ref(false)
+let lastScrollY = 0
+
+function onScrollCapture(e) {
+  const t = e.target
+  const y =
+    t === document || t === document.documentElement || t === document.body
+      ? window.scrollY
+      : (t.scrollTop ?? window.scrollY)
+  if (y < 80) {
+    headerHidden.value = false
+    lastScrollY = y
+    return
+  }
+  // 只有同方向累计超过 8px 才翻转，避免抖动
+  if (y - lastScrollY > 8) {
+    headerHidden.value = true
+    lastScrollY = y
+  } else if (lastScrollY - y > 8) {
+    headerHidden.value = false
+    lastScrollY = y
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('scroll', onScrollCapture, { capture: true, passive: true })
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', onScrollCapture, { capture: true })
+})
 </script>
 
 <template>
-  <header class="app-header">
+  <header class="app-header" :class="{ hidden: headerHidden }">
     <router-link to="/" class="brand">
       中国通史<small>五卷本 · 交互式学习</small>
     </router-link>

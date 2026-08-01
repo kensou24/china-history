@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useMeta } from '@/composables/useMeta'
 import { useProgressStore } from '@/stores/progress'
 import { useDebounce } from '@/composables/useDebounce'
@@ -45,14 +45,52 @@ async function init() {
     /* error 已写入 store */
   } finally {
     loading.value = false
+    setupCardReveal()
   }
 }
 
 onMounted(init)
+onUnmounted(() => cardObserver?.disconnect())
 
 function clearSearch() {
   search.value = ''
 }
+
+// ---- 卡片滚动浮现 ----
+let cardObserver = null
+
+function reducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+// 进入视口的卡片按批次 35ms 级联浮现；筛选变化后重挂观察（只补未揭示的新卡）
+function setupCardReveal() {
+  cardObserver?.disconnect()
+  cardObserver = null
+  if (reducedMotion()) return
+  nextTick(() => {
+    cardObserver = new IntersectionObserver(
+      (entries) => {
+        const hits = entries.filter((e) => e.isIntersecting)
+        hits.forEach((en, i) => {
+          const el = en.target
+          const delay = Math.min(i * 35, 280)
+          el.style.transitionDelay = `${delay}ms`
+          el.classList.add('card-shown')
+          cardObserver.unobserve(el)
+          // 揭示完成后清掉延迟，避免拖累 hover/active 的即时反馈
+          setTimeout(() => (el.style.transitionDelay = ''), delay + 450)
+        })
+      },
+      { rootMargin: '0px 0px -4% 0px', threshold: 0.05 },
+    )
+    document
+      .querySelectorAll('.catalog .chapter-card:not(.card-shown)')
+      .forEach((el) => cardObserver.observe(el))
+  })
+}
+
+watch(filteredVolumes, setupCardReveal)
 </script>
 
 <template>
@@ -95,7 +133,7 @@ function clearSearch() {
           {{ v.title }}
           <small>{{ v.chapters.length }} 章</small>
         </h2>
-        <div class="chapter-grid">
+        <TransitionGroup name="cards" tag="div" class="chapter-grid">
           <router-link
             v-for="c in v.chapters"
             :key="c.id"
@@ -114,7 +152,7 @@ function clearSearch() {
               <div :style="{ width: Math.min(100, progress.chapters[c.id]) + '%' }" />
             </div>
           </router-link>
-        </div>
+        </TransitionGroup>
       </section>
 
       <div v-if="matchedCount === 0" class="empty">
@@ -187,6 +225,55 @@ function clearSearch() {
   gap: 14px;
 }
 
+/* 卡片浮现：初始隐藏，JS 观察进入视口后加 card-shown */
+.chapter-card {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity 0.4s ease,
+    transform 0.4s ease,
+    box-shadow 0.15s ease,
+    background 0.25s,
+    border-color 0.25s;
+}
+
+.chapter-card.card-shown {
+  opacity: 1;
+  transform: none;
+}
+
+.chapter-card.card-shown:hover {
+  transform: translateY(-2px);
+}
+
+.chapter-card.card-shown:active {
+  transform: translateY(-1px) scale(0.98);
+}
+
+/* 未揭示卡片的进度条压到 0，揭示时随卡片一同涨起 */
+.chapter-card .progress-bar > div {
+  transition: width 0.5s ease 0.15s;
+}
+
+.chapter-card:not(.card-shown) .progress-bar > div {
+  width: 0 !important;
+}
+
+/* 筛选 FLIP：幸存卡片滑向新位置，离场卡片快速淡出 */
+.cards-move {
+  transition: transform 0.35s ease;
+}
+
+.cards-leave-active {
+  position: absolute;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.cards-leave-to {
+  opacity: 0;
+  transform: scale(0.96);
+}
+
 .chapter-card .done {
   color: var(--accent);
   font-weight: 600;
@@ -251,6 +338,14 @@ function clearSearch() {
 
   .volume-title {
     font-size: 17px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chapter-card {
+    opacity: 1;
+    transform: none;
+    transition: none;
   }
 }
 </style>

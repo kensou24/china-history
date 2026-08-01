@@ -148,11 +148,13 @@ watch(
   border-radius: 4px;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
   opacity: 0;
-  transition: opacity 0.25s;
+  transform: scale(0.94);
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 .lightbox img.loaded {
   opacity: 1;
+  transform: scale(1);
 }
 
 .lightbox .caption {
@@ -187,6 +189,7 @@ watch(
   .lightbox img {
     transition: none;
     opacity: 1;
+    transform: none;
   }
 
   .fade-enter-active,
