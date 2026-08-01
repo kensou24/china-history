@@ -21,9 +21,13 @@ export const useProgressStore = defineStore('progress', {
   },
   actions: {
     record(chId, percent) {
-      this.chapters[chId] = Math.max(this.chapters[chId] || 0, Math.round(percent))
+      const prev = this.chapters[chId] || 0
+      const next = Math.max(prev, Math.round(percent))
+      this.chapters[chId] = next
       this.lastRead = chId
       this.persist()
+      // 本次记录是否让该章首次达到"读完"（≥98）
+      return prev < 98 && next >= 98
     },
     persist() {
       localStorage.setItem(KEY, JSON.stringify({
