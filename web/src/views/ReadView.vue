@@ -66,6 +66,11 @@ const dynasty = computed(() =>
   chapter.value ? dynastyById(chapter.value.dynasty) : null,
 )
 
+// 阅读时长估计：按 400 字/分钟
+const readMinutes = computed(() =>
+  chapter.value ? Math.max(1, Math.ceil(chapter.value.wordCount / 400)) : 0,
+)
+
 // 加载序号：慢网络下跨卷快速翻章时，丢弃过期请求的结果，避免旧章覆盖新章
 let loadSeq = 0
 
@@ -97,6 +102,7 @@ async function loadChapter() {
     }
     const vc = volData.value.chapters.find((c) => c.id === ch.id)
     chapter.value = { ...ch, blocks: vc.blocks }
+    document.title = `${ch.title} · 中国通史学习`
   } catch (e) {
     if (seq === loadSeq) error.value = e.message || '章节加载失败'
   } finally {
@@ -328,6 +334,7 @@ function onWindowKey(e) {
       </div>
       <div class="ch-meta">
         <span>{{ chapter.wordCount.toLocaleString() }} 字</span>
+        <span>约 {{ readMinutes }} 分钟</span>
         <span>{{ chapter.imageCount }} 幅插图</span>
         <span v-if="progress.chapters[chapter.id] >= 98">✓ 已读完</span>
       </div>
@@ -618,6 +625,7 @@ function onWindowKey(e) {
   margin: 0 0 1em;
   text-indent: 2em;
   text-align: justify;
+  hanging-punctuation: first allow-end; /* 中文标点悬挂，不支持则无害降级 */
 }
 
 /* 段落滚动浮现：占位不变（transform + opacity），滚动时无重排 */
