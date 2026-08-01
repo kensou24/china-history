@@ -152,7 +152,7 @@ function onWheel(e) {
 
 // ---- 拖拽 / 惯性 / pinch ----
 const pointers = new Map()
-let dragStart = null // { view, pinchD0, pinchView, pinchAnchor }
+let dragStart = null // { view, downX, downY, pinchD0, pinchView, pinchAnchor }
 let velX = 0
 let velY = 0
 let lastMoveT = 0
@@ -216,7 +216,7 @@ function onPointerDown(e) {
   lastMoveX = e.clientX
   lastMoveY = e.clientY
   moved.value = false
-  dragStart = { view: { ...view.value } }
+  dragStart = { view: { ...view.value }, downX: e.clientX, downY: e.clientY }
   if (pointers.size === 2) {
     const pts = [...pointers.values()]
     const d0 = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
@@ -261,11 +261,18 @@ function onPointerMove(e) {
       velX = velX * 0.6 + ((e.clientX - lastMoveX) / (now - lastMoveT)) * 0.4
       velY = velY * 0.6 + ((e.clientY - lastMoveY) / (now - lastMoveT)) * 0.4
     }
+    const dx = e.clientX - lastMoveX
+    const dy = e.clientY - lastMoveY
     lastMoveT = now
     lastMoveX = e.clientX
     lastMoveY = e.clientY
-    if (Math.abs(e.movementX) + Math.abs(e.movementY) > 0) moved.value = true
-    panByPx(e.movementX, e.movementY)
+    if (
+      dragStart.downX !== undefined &&
+      Math.hypot(e.clientX - dragStart.downX, e.clientY - dragStart.downY) >= 5
+    ) {
+      moved.value = true
+    }
+    panByPx(dx, dy)
   }
 }
 
@@ -277,7 +284,7 @@ function onPointerUp(e) {
   if (wasPinch && pointers.size === 1) {
     // 捏合后先抬一指：以剩余手指当前位置重新锚定，防跳变
     const [p] = pointers.values()
-    dragStart = { view: { ...view.value } }
+    dragStart = { view: { ...view.value }, downX: p.x, downY: p.y }
     lastMoveT = 0
     lastMoveX = p.x
     lastMoveY = p.y
