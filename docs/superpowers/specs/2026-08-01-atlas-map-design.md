@@ -142,7 +142,7 @@ data/map_preview/*.svg（每朝代预览图，供人工校订，不入库）
 - dynasty 模式 → `/#/map?d=tang`；year 模式 → `/#/map?y=1100`；
   状态变化走 `router.replace`（不污染历史）；进入读 query 初始化（d 优先于 y）
 - 非法 query 静默回落默认态：**有阅读记录 → dynasty 模式选中 lastRead 章所属朝代**；
-  无记录 → `year=-221`（秦统一）
+  无记录 → `year=yearOf('qin')`（秦代表年；Cliopatria 秦几何自 -218 起，-221 只见战国末年）
 
 ### 首页时间轴双向联动
 
