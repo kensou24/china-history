@@ -204,7 +204,8 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
 </script>
 
 <template>
-  <AppLoading v-if="loading" />
+  <div class="read-page">
+    <AppLoading v-if="loading" />
 
   <div v-else-if="error" class="error-box">
     <p>{{ error }}</p>
@@ -305,6 +306,7 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   />
 
   <BackToTop :target="scrollEl" :threshold="600" />
+  </div>
 </template>
 
 <style scoped>
