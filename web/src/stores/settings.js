@@ -14,7 +14,7 @@ export const useSettingsStore = defineStore('settings', {
     return {
       fontSize: saved.fontSize ?? 18, // px
       lineHeight: saved.lineHeight ?? 1.9,
-      theme: saved.theme ?? 'paper', // paper | dark | sepia
+      theme: saved.theme ?? 'auto', // auto | paper | sepia | dark（auto 跟随系统深浅色）
       railCollapsed: saved.railCollapsed ?? false, // 阅读页朝代竖轨是否收起
     }
   },

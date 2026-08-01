@@ -10,22 +10,39 @@ const progress = useProgressStore()
 const { toasts } = useToast()
 
 const themes = [
+  { id: 'auto', label: '自' },
   { id: 'paper', label: '纸' },
   { id: 'sepia', label: '褐' },
   { id: 'dark', label: '夜' },
 ]
 
-function setTheme(t, animate = false) {
-  settings.setTheme(t)
+// auto 档跟随系统深浅色；body[data-theme] 只写解析后的具体主题
+const systemDark = window.matchMedia('(prefers-color-scheme: dark)')
+
+const resolveTheme = (t) =>
+  t === 'auto' ? (systemDark.matches ? 'dark' : 'paper') : t
+
+function applyTheme(t, animate = false) {
   // 切换瞬间挂过渡类，全站颜色 300ms 渐变；首次加载与 reduced-motion 不触发
   if (animate && !reducedMotion()) {
     document.body.classList.add('theme-anim')
     setTimeout(() => document.body.classList.remove('theme-anim'), 350)
   }
-  document.body.dataset.theme = t
+  document.body.dataset.theme = resolveTheme(t)
+}
+
+function setTheme(t, animate = false) {
+  settings.setTheme(t)
+  applyTheme(t, animate)
 }
 
 setTheme(settings.theme)
+
+function onSystemThemeChange() {
+  if (settings.theme === 'auto') applyTheme('auto')
+}
+
+systemDark.addEventListener('change', onSystemThemeChange)
 
 // ---- 顶栏自动隐藏：下滚隐藏、上滚浮现 ----
 // capture 阶段监听，可同时捕获 reader-body 等内部滚动容器的 scroll 事件
@@ -59,6 +76,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('scroll', onScrollCapture, { capture: true })
+  systemDark.removeEventListener('change', onSystemThemeChange)
 })
 </script>
 

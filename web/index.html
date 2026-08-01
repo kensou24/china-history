@@ -5,6 +5,21 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="中国通史 · 交互式学习网站 —— 五卷本 100 章，以朝代时间轴为核心导航" />
+    <script>
+      // 防主题白闪：JS bundle 加载前预置 html 背景（与 settings store 读取逻辑一致）
+      try {
+        var s = JSON.parse(localStorage.getItem('zgts:settings') || '{}')
+        var t = s.theme || 'auto'
+        var r =
+          t === 'auto'
+            ? matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'paper'
+            : t
+        var bg = { paper: '#f6f1e7', sepia: '#efe0c7', dark: '#1e1d1b' }
+        document.documentElement.style.background = bg[r] || bg.paper
+      } catch (e) {}
+    </script>
     <title>中国通史 · 交互式学习</title>
   </head>
   <body>
