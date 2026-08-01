@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useMeta } from '@/composables/useMeta'
 
 const props = defineProps({
@@ -12,6 +12,7 @@ const selected = ref(null)
 const hover = ref(null)
 const tooltip = ref({ x: 0, y: 0, visible: false, d: null })
 const svgRef = ref(null)
+const timelineRef = ref(null)
 const matchedDynasty = ref(null)
 
 // ---- 时间映射：史前段压缩，其余线性 ----
@@ -30,6 +31,40 @@ function scaleYear(y) {
 
 // 视图窗口（年份），默认全史
 const view = ref({ start: T_PRE_START, end: T_LIN_END })
+const targetView = ref(null)
+let animId = null
+
+function reducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
+
+function setView(v, animate = true) {
+  targetView.value = { ...v }
+  cancelAnimationFrame(animId)
+  if (!animate || reducedMotion()) {
+    view.value = { ...v }
+    return
+  }
+  const from = { ...view.value }
+  const t0 = performance.now()
+  const dur = 350
+  function step(now) {
+    const p = Math.min(1, (now - t0) / dur)
+    const e = easeInOutCubic(p)
+    view.value = {
+      start: from.start + (targetView.value.start - from.start) * e,
+      end: from.end + (targetView.value.end - from.end) * e,
+    }
+    if (p < 1) {
+      animId = requestAnimationFrame(step)
+    }
+  }
+  animId = requestAnimationFrame(step)
+}
 
 // 窗口内归一化 x
 function xOf(y) {
@@ -81,13 +116,13 @@ const rowY = (row) => 6 + row * (ROW_H + ROW_GAP)
 const yearLabel = (y) => (y < 0 ? `前${-y}` : `${y}`)
 
 // ---- 缩放 ----
-function zoom(factor, centerYear) {
-  const cur = view.value
+function zoom(factor, centerYear, animate = true) {
+  const cur = targetView.value || view.value
   const span = cur.end - cur.start
   const newSpan = span * factor
   if (newSpan < 60) return // 最小窗口 60 年
   if (newSpan > T_LIN_END - T_PRE_START) {
-    view.value = { start: T_PRE_START, end: T_LIN_END }
+    setView({ start: T_PRE_START, end: T_LIN_END }, animate)
     return
   }
   const c = centerYear ?? (cur.start + cur.end) / 2
@@ -102,7 +137,7 @@ function zoom(factor, centerYear) {
     s -= e - T_LIN_END
     e = T_LIN_END
   }
-  view.value = { start: Math.max(T_PRE_START, s), end: Math.min(T_LIN_END, e) }
+  setView({ start: Math.max(T_PRE_START, s), end: Math.min(T_LIN_END, e) }, animate)
 }
 
 function zoomIn() {
@@ -114,21 +149,139 @@ function zoomOut() {
 }
 
 function resetView() {
-  view.value = { start: T_PRE_START, end: T_LIN_END }
   selected.value = null
   matchedDynasty.value = null
+  setView({ start: T_PRE_START, end: T_LIN_END })
+}
+
+function yearAtClientX(cx) {
+  const rect = svgRef.value.getBoundingClientRect()
+  const ratio = (cx - rect.left) / rect.width
+  const s = scaleYear(view.value.start)
+  const e = scaleYear(view.value.end)
+  const targetScale = s + (e - s) * ratio
+  // 反向映射
+  if (targetScale <= PRE_FRAC) {
+    return T_PRE_START + (targetScale / PRE_FRAC) * (T_PRE_END - T_PRE_START)
+  }
+  return T_PRE_END + ((targetScale - PRE_FRAC) / (1 - PRE_FRAC)) * (T_LIN_END - T_PRE_END)
 }
 
 // 滚轮缩放（以鼠标位置为锚点）
 function onWheel(e) {
   e.preventDefault()
-  const rect = svgRef.value.getBoundingClientRect()
-  const ratio = (e.clientX - rect.left) / rect.width
-  const yearAtCursor = view.value.start + (view.value.end - view.value.start) * ratio
-  zoom(e.deltaY > 0 ? 1.25 : 0.8, yearAtCursor)
+  cancelAnimationFrame(animId)
+  const c = yearAtClientX(e.clientX)
+  zoom(e.deltaY > 0 ? 1.25 : 0.8, c, false)
+}
+
+// ---- 拖拽 / 触摸平移与缩放 ----
+const pointers = new Map()
+const dragStart = ref(null)
+const suppressClick = ref(false)
+
+function distance(p1, p2) {
+  const dx = p1.x - p2.x
+  const dy = p1.y - p2.y
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+function midYear(p1, p2) {
+  return yearAtClientX((p1.x + p2.x) / 2)
+}
+
+function onPointerDown(e) {
+  if (!svgRef.value) return
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  svgRef.value.setPointerCapture(e.pointerId)
+  dragStart.value = { x: e.clientX, yearStart: view.value.start, yearEnd: view.value.end }
+  suppressClick.value = false
+}
+
+function onPointerMove(e) {
+  if (!pointers.has(e.pointerId)) return
+  const prev = pointers.get(e.pointerId)
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
+
+  if (pointers.size === 2) {
+    // pinch
+    const pts = Array.from(pointers.values())
+    const prevPts = [prev, { x: e.clientX, y: e.clientY }]
+    // 简单处理：用当前两点距离与初始 pinch 距离比较
+    if (dragStart.value && dragStart.value.pinchD0) {
+      const d1 = distance(pts[0], pts[1])
+      const c = midYear(pts[0], pts[1])
+      zoom(dragStart.value.pinchD0 / d1, c, false)
+    }
+    return
+  }
+
+  if (pointers.size === 1 && dragStart.value) {
+    const dx = e.clientX - dragStart.value.x
+    if (Math.abs(dx) > 4) suppressClick.value = true
+    const rect = svgRef.value.getBoundingClientRect()
+    const span = dragStart.value.yearEnd - dragStart.value.yearStart
+    const yearDx = -(dx / rect.width) * span
+    let s = dragStart.value.yearStart + yearDx
+    let e = dragStart.value.yearEnd + yearDx
+    const maxSpan = T_LIN_END - T_PRE_START
+    if (e - s > maxSpan) {
+      const mid = (s + e) / 2
+      s = mid - maxSpan / 2
+      e = mid + maxSpan / 2
+    }
+    if (s < T_PRE_START) {
+      e += T_PRE_START - s
+      s = T_PRE_START
+    }
+    if (e > T_LIN_END) {
+      s -= e - T_LIN_END
+      e = T_LIN_END
+    }
+    cancelAnimationFrame(animId)
+    view.value = { start: s, end: e }
+  }
+}
+
+function onPointerUp(e) {
+  if (svgRef.value) svgRef.value.releasePointerCapture(e.pointerId)
+  pointers.delete(e.pointerId)
+  dragStart.value = null
+}
+
+function onPointerCancel(e) {
+  pointers.delete(e.pointerId)
+  dragStart.value = null
+}
+
+function onPointerDownPinch(e) {
+  onPointerDown(e)
+  if (pointers.size === 2) {
+    const pts = Array.from(pointers.values())
+    dragStart.value = {
+      ...dragStart.value,
+      pinchD0: distance(pts[0], pts[1]),
+      pinchView: { ...view.value },
+    }
+  }
 }
 
 // ---- hover / tooltip ----
+async function clampTooltip() {
+  await nextTick()
+  const tipEl = timelineRef.value?.querySelector('.tooltip')
+  const svgEl = svgRef.value
+  if (!tipEl || !svgEl) return
+  const tRect = tipEl.getBoundingClientRect()
+  const sRect = svgEl.getBoundingClientRect()
+  let x = tooltip.value.x + 14
+  let y = tooltip.value.y - 12
+  if (x + tRect.width > sRect.width) x = tooltip.value.x - tRect.width - 14
+  if (y + tRect.height > sRect.height) y = sRect.height - tRect.height - 8
+  if (y < 0) y = 8
+  tooltip.value = { ...tooltip.value, x, y }
+}
+
 function onMove(d, e) {
   hover.value = d
   const rect = svgRef.value.getBoundingClientRect()
@@ -138,6 +291,7 @@ function onMove(d, e) {
     visible: true,
     d,
   }
+  clampTooltip()
 }
 
 function onLeave() {
@@ -146,7 +300,23 @@ function onLeave() {
 }
 
 function select(d) {
+  if (suppressClick.value) return
   selected.value = selected.value?.id === d.id ? null : d
+}
+
+function onKey(e) {
+  if (e.key === 'Escape') {
+    selected.value = null
+    matchedDynasty.value = null
+    resetView()
+  }
+}
+
+function onDynKey(e, d) {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault()
+    select(d)
+  }
 }
 
 // ---- 搜索联动 ----
@@ -165,35 +335,38 @@ watch(
     })
     if (hit) {
       matchedDynasty.value = hit.id
-      // 定位到该朝代
       const pad = Math.max(40, (hit.end - hit.start) * 0.3)
-      view.value = {
+      setView({
         start: Math.max(T_PRE_START, hit.start - pad),
         end: Math.min(T_LIN_END, hit.end + pad),
-      }
+      })
     } else {
       matchedDynasty.value = null
     }
   },
 )
 
-// 键盘 Esc 关闭
-function onKey(e) {
-  if (e.key === 'Escape') {
-    selected.value = null
-    matchedDynasty.value = null
-    resetView()
-  }
-}
+// 搜索是否命中
+const hasMatch = computed(() => {
+  const q = props.keyword.trim()
+  if (!q) return true
+  return props.dynasties.some((d) => {
+    if (d.name.includes(q)) return true
+    if (d.alias.some((a) => a.includes(q))) return true
+    return d.chapterIds.some((id) => chapterById(id)?.title.includes(q))
+  })
+})
+
+const isTouch = ref(false)
 
 onMounted(() => {
   window.addEventListener('keydown', onKey)
-  svgRef.value?.addEventListener('wheel', onWheel, { passive: false })
+  isTouch.value = window.matchMedia('(hover: none)').matches
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
-  svgRef.value?.removeEventListener('wheel', onWheel)
+  cancelAnimationFrame(animId)
 })
 
 const chaptersOf = (d) => d.chapterIds.map((id) => chapterById(id)).filter(Boolean)
@@ -205,12 +378,12 @@ const controlsVisible = computed(
 </script>
 
 <template>
-  <div class="timeline">
+  <div ref="timelineRef" class="timeline">
     <!-- 缩放控制 -->
     <div class="zoom-controls">
-      <button @click="zoomIn" title="放大">＋</button>
-      <button @click="zoomOut" title="缩小">－</button>
-      <button v-if="controlsVisible" @click="resetView" title="回到全史">全史</button>
+      <button @click="zoomIn" title="放大" aria-label="放大时间轴">＋</button>
+      <button @click="zoomOut" title="缩小" aria-label="缩小时间轴">－</button>
+      <button v-if="controlsVisible" @click="resetView" title="回到全史" aria-label="回到全史">全史</button>
     </div>
 
     <!-- SVG 时间轴 -->
@@ -218,7 +391,13 @@ const controlsVisible = computed(
       ref="svgRef"
       :viewBox="`0 0 ${VIEW_W} ${viewH}`"
       class="axis-svg"
+      role="img"
+      aria-label="朝代时间轴"
       @wheel.prevent="onWheel"
+      @pointerdown="onPointerDownPinch"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @pointercancel="onPointerCancel"
     >
       <!-- 年份刻度 -->
       <line :x1="xOf(view.start)" y1="0" :x2="xOf(view.end)" y2="0" class="axis-line" />
@@ -238,9 +417,14 @@ const controlsVisible = computed(
             matched: matchedDynasty === d.id,
             hovered: hover?.id === d.id,
           }"
+          tabindex="0"
+          role="button"
+          :aria-label="`${d.name} ${yearLabel(d.start)}—${yearLabel(d.end)}`"
+          :aria-pressed="selected?.id === d.id"
           @mousemove="onMove(d, $event)"
           @mouseleave="onLeave"
           @click="select(d)"
+          @keydown="onDynKey($event, d)"
         >
           <title>{{ d.name }} {{ yearLabel(d.start) }}—{{ yearLabel(d.end) }}</title>
         </rect>
@@ -287,13 +471,16 @@ const controlsVisible = computed(
         </text>
       </g>
     </svg>
-    <div class="axis-hint">滚轮缩放 · 点击朝代查看章节 · Esc 复位</div>
+    <div class="axis-hint">
+      {{ isTouch ? '拖动平移 · 双指缩放 · 点按查看章节' : '滚轮缩放 · 点击朝代查看章节 · Esc 复位' }}
+    </div>
 
     <!-- hover 信息卡 -->
     <div
-      v-if="tooltip.visible && tooltip.d"
+      v-if="tooltip.visible && tooltip.d && !isTouch"
       class="tooltip"
-      :style="{ left: tooltip.x + 14 + 'px', top: tooltip.y - 12 + 'px' }"
+      aria-hidden="true"
+      :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
     >
       <strong>{{ tooltip.d.name }}</strong>
       <span>{{ yearLabel(tooltip.d.start) }} — {{ yearLabel(tooltip.d.end) }}</span>
@@ -323,6 +510,9 @@ const controlsVisible = computed(
       </div>
     </section>
 
+    <p v-else-if="!hasMatch" class="hint no-match">
+      未找到与「{{ keyword }}」相关的朝代或章节
+    </p>
     <p v-else class="hint">点击朝代区块，查看该朝代对应的全部章节 →</p>
   </div>
 </template>
@@ -352,6 +542,12 @@ const controlsVisible = computed(
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px 0 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.axis-svg:active {
+  cursor: grabbing;
 }
 
 .axis-line {
@@ -362,6 +558,7 @@ const controlsVisible = computed(
 .dyn-rect {
   cursor: pointer;
   transition: filter 0.15s, opacity 0.15s;
+  outline: none;
 }
 
 .dyn-rect:hover,
@@ -379,6 +576,11 @@ const controlsVisible = computed(
   stroke-width: 2.5;
   stroke-dasharray: 5 3;
   filter: brightness(1.25);
+}
+
+.dyn-rect:focus-visible {
+  stroke: var(--accent);
+  stroke-width: 3;
 }
 
 .dyn-label {
@@ -449,5 +651,19 @@ const controlsVisible = computed(
   color: var(--text-soft);
   font-size: 13px;
   margin-top: 14px;
+}
+
+.hint.no-match {
+  color: var(--accent-soft);
+}
+
+@media (max-width: 768px) {
+  .chapter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dyn-chapters h2 {
+    font-size: 18px;
+  }
 }
 </style>

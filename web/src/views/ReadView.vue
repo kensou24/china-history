@@ -1,23 +1,38 @@
 <script setup>
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  watch,
+} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMeta } from '@/composables/useMeta'
 import { loadVolume } from '@/composables/useVolume'
 import { useSettingsStore } from '@/stores/settings'
 import { useProgressStore } from '@/stores/progress'
+import { useToast } from '@/composables/useToast'
 import Lightbox from '@/components/Lightbox.vue'
+import AppLoading from '@/components/AppLoading.vue'
+import BackToTop from '@/components/BackToTop.vue'
 
 const route = useRoute()
 const router = useRouter()
 const settings = useSettingsStore()
 const progress = useProgressStore()
-const { meta, loadMeta, chapterById, dynastyById } = useMeta()
+const { toast } = useToast()
+const { meta, loadMeta, chapterById, dynastyById, error: metaError } = useMeta()
 
 const chapter = ref(null)
 const volData = ref(null)
 const loading = ref(true)
+const error = ref(null)
+const notFound = ref(false)
 const lightbox = ref({ src: '', caption: '', visible: false })
 const scrollEl = ref(null)
+const scrollPct = ref(0)
+const imageLoaded = ref({})
 
 // 当前章节在全书中的位置（上一章 / 下一章）
 const all = computed(() =>
@@ -34,20 +49,50 @@ const dynasty = computed(() =>
 
 async function loadChapter() {
   loading.value = true
-  await loadMeta()
-  const ch = chapterById(route.params.id)
-  if (!ch) {
-    router.replace('/')
-    return
+  error.value = null
+  notFound.value = false
+  imageLoaded.value = {}
+  try {
+    await loadMeta()
+    if (metaError.value) throw new Error(metaError.value)
+    const ch = chapterById(route.params.id)
+    if (!ch) {
+      notFound.value = true
+      loading.value = false
+      return
+    }
+    chapter.value = ch
+    const volId = meta.value.volumes.findIndex((v) =>
+      v.chapters.some((c) => c.id === ch.id),
+    ) + 1
+    volData.value = await loadVolume(volId)
+    const vc = volData.value.chapters.find((c) => c.id === ch.id)
+    chapter.value.blocks = vc.blocks
+  } catch (e) {
+    error.value = e.message || '章节加载失败'
+  } finally {
+    loading.value = false
   }
-  chapter.value = ch
-  const volId = meta.value.volumes.findIndex((v) =>
-    v.chapters.some((c) => c.id === ch.id),
-  ) + 1
-  volData.value = await loadVolume(volId)
-  const vc = volData.value.chapters.find((c) => c.id === ch.id)
-  chapter.value.blocks = vc.blocks
-  loading.value = false
+}
+
+function retry() {
+  loadChapter()
+}
+
+function restoreScroll() {
+  const id = chapter.value?.id
+  if (!id || !scrollEl.value) return
+  const pct = progress.chapters[id]
+  if (pct >= 2 && pct < 98) {
+    nextTick(() => {
+      const el = scrollEl.value
+      const max = el.scrollHeight - el.clientHeight
+      if (max > 0) {
+        el.scrollTop = (pct / 100) * max
+        toast(`已从上次阅读的 ${Math.round(pct)}% 处继续`)
+      }
+    })
+  }
 }
 
 // 滚动 → 进度记录（节流）
@@ -60,6 +105,7 @@ function onScroll() {
     if (!el || !chapter.value) return
     const max = el.scrollHeight - el.clientHeight
     const pct = max > 0 ? (el.scrollTop / max) * 100 : 100
+    scrollPct.value = pct
     progress.record(chapter.value.id, pct)
   }, 400)
 }
@@ -67,23 +113,39 @@ function onScroll() {
 watch(
   () => route.params.id,
   () => {
-    loadChapter()
-    if (scrollEl.value) scrollEl.value.scrollTop = 0
+    loadChapter().then(() => {
+      if (scrollEl.value) scrollEl.value.scrollTop = 0
+      restoreScroll()
+    })
   },
 )
 
-onMounted(() => {
-  loadChapter()
-  if (scrollEl.value) {
-    scrollEl.value.addEventListener('scroll', onScroll, { passive: true })
+watch(loading, (v) => {
+  if (!v && chapter.value) {
+    scrollPct.value = progress.chapters[chapter.value.id] || 0
+    restoreScroll()
   }
+})
+
+onMounted(() => {
+  loadChapter().then(() => {
+    if (scrollEl.value) {
+      scrollEl.value.addEventListener('scroll', onScroll, { passive: true })
+    }
+  })
+  window.addEventListener('keydown', onWindowKey)
 })
 
 onUnmounted(() => {
   if (scrollEl.value) {
     scrollEl.value.removeEventListener('scroll', onScroll)
   }
+  window.removeEventListener('keydown', onWindowKey)
 })
+
+function onImageLoad(imgId) {
+  imageLoaded.value[imgId] = true
+}
 
 function openLightbox(imgId, caption) {
   lightbox.value = {
@@ -94,13 +156,72 @@ function openLightbox(imgId, caption) {
   }
 }
 
+function goPrev() {
+  if (prevCh.value) router.push(`/read/${prevCh.value.id}`)
+}
+
+function goNext() {
+  if (nextCh.value) router.push(`/read/${nextCh.value.id}`)
+}
+
+function scrollByPage(dir) {
+  const el = scrollEl.value
+  if (!el) return
+  const amount = el.clientHeight * 0.85 * dir
+  el.scrollBy({ top: amount, behavior: reducedMotion() ? 'auto' : 'smooth' })
+}
+
+function reducedMotion() {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function onWindowKey(e) {
+  if (lightbox.value.visible) return
+  const tag = e.target?.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    goPrev()
+  } else if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    goNext()
+  } else if (e.key === 'PageDown' || e.key === ' ') {
+    e.preventDefault()
+    scrollByPage(1)
+  } else if (e.key === 'PageUp') {
+    e.preventDefault()
+    scrollByPage(-1)
+  } else if (e.key === 'Home') {
+    e.preventDefault()
+    if (scrollEl.value) scrollEl.value.scrollTop = 0
+  } else if (e.key === 'End') {
+    e.preventDefault()
+    if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+  }
+}
+
 const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
 </script>
 
 <template>
-  <div v-if="loading" class="loading">加载中…</div>
+  <AppLoading v-if="loading" />
+
+  <div v-else-if="error" class="error-box">
+    <p>{{ error }}</p>
+    <button @click="retry">重新加载</button>
+  </div>
+
+  <div v-else-if="notFound" class="error-box">
+    <p>未找到该章节</p>
+    <router-link to="/catalog">返回全书目录</router-link>
+  </div>
 
   <div v-else-if="chapter" class="reader">
+    <!-- 阅读进度条 -->
+    <div class="read-progress" aria-label="本章阅读进度" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(scrollPct)">
+      <div :style="{ width: scrollPct + '%' }" />
+    </div>
+
     <!-- 顶部章节信息 -->
     <div class="reader-head">
       <div class="crumb">
@@ -124,13 +245,14 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
       <!-- 阅读设置 -->
       <div class="reader-tools">
         <button @click="settings.setFontSize(settings.fontSize - 1)" title="减小字号">A−</button>
-        <span class="tool-val">{{ settings.fontSize }}px</span>
+        <span class="tool-val" :key="settings.fontSize">{{ settings.fontSize }}px</span>
         <button @click="settings.setFontSize(settings.fontSize + 1)" title="增大字号">A+</button>
         <span class="tool-sep" />
         <button @click="settings.setLineHeight(settings.lineHeight - 0.2)" title="减小行距">行−</button>
-        <span class="tool-val">{{ settings.lineHeight.toFixed(1) }}</span>
+        <span class="tool-val" :key="settings.lineHeight">{{ settings.lineHeight.toFixed(1) }}</span>
         <button @click="settings.setLineHeight(settings.lineHeight + 0.2)" title="增大行距">行+</button>
       </div>
+      <div class="key-hint">← → 翻章 · 空格 / PageDown 滚屏 · Home/End 跳转</div>
     </div>
 
     <!-- 正文 -->
@@ -147,7 +269,9 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
             loading="lazy"
             :src="`/images/${b.img}.webp`"
             :alt="b.caption"
+            :class="{ loaded: imageLoaded[b.img] }"
             @click="openLightbox(b.img, b.caption)"
+            @load="onImageLoad(b.img)"
           />
           <figcaption v-if="b.caption">{{ b.caption }}</figcaption>
         </figure>
@@ -179,12 +303,30 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
     :visible="lightbox.visible"
     @close="lightbox.visible = false"
   />
+
+  <BackToTop :target="scrollEl" :threshold="600" />
 </template>
 
 <style scoped>
 .reader {
   max-width: 860px;
   margin: 0 auto;
+}
+
+.read-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 60;
+  background: transparent;
+}
+
+.read-progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
 }
 
 .reader-head {
@@ -233,6 +375,7 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   border: 1px solid var(--border);
   border-radius: 8px;
   width: fit-content;
+  flex-wrap: wrap;
 }
 
 .reader-tools button {
@@ -245,6 +388,16 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   color: var(--text-soft);
   min-width: 34px;
   text-align: center;
+  animation: valuePulse 0.3s ease;
+}
+
+@keyframes valuePulse {
+  0% {
+    color: var(--accent);
+  }
+  100% {
+    color: var(--text-soft);
+  }
 }
 
 .tool-sep {
@@ -252,6 +405,12 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   height: 18px;
   background: var(--border);
   margin: 0 6px;
+}
+
+.key-hint {
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-top: 8px;
 }
 
 .reader-body {
@@ -262,6 +421,7 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   max-height: calc(100vh - 260px);
   overflow-y: auto;
   box-shadow: var(--shadow);
+  transition: font-size 0.2s, line-height 0.2s, background 0.25s, border-color 0.25s;
 }
 
 .block-p {
@@ -281,6 +441,13 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
 .block-fig {
   margin: 24px auto;
   text-align: center;
+  min-height: 180px;
+  background: var(--bg-soft);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .block-fig img {
@@ -290,6 +457,12 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   cursor: zoom-in;
   border: 1px solid var(--border);
   background: var(--bg-soft);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.block-fig img.loaded {
+  opacity: 1;
 }
 
 .block-fig figcaption {
@@ -352,9 +525,49 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   opacity: 0.6;
 }
 
-.loading {
-  padding: 80px;
+.error-box {
+  padding: 80px 24px;
   text-align: center;
   color: var(--text-soft);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.error-box p {
+  margin: 0 0 16px;
+}
+
+@media (max-width: 768px) {
+  .reader-body {
+    padding: 20px 18px;
+    max-height: calc(100vh - 240px);
+  }
+
+  .ch-title {
+    font-size: 24px;
+  }
+
+  .reader-tools {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .key-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-val {
+    animation: none;
+  }
+
+  .block-fig img {
+    transition: none;
+    opacity: 1;
+  }
 }
 </style>
