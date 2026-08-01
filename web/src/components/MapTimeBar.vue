@@ -49,6 +49,24 @@ function onPointerUp(e) {
   trackRef.value.releasePointerCapture(e.pointerId)
 }
 
+// 键盘可达性：方向键 / Home / End 在变化年份档位间步进
+function onKey(e) {
+  const ys = props.years
+  // 当前年最近的下标（与父级 stepYear 同语义：离 y 最近）
+  let i = 0
+  for (let k = 0; k < ys.length; k++) {
+    if (Math.abs(ys[k] - props.year) < Math.abs(ys[i] - props.year)) i = k
+  }
+  let ni = i
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') ni = Math.max(0, i - 1)
+  else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') ni = Math.min(ys.length - 1, i + 1)
+  else if (e.key === 'Home') ni = 0
+  else if (e.key === 'End') ni = ys.length - 1
+  else return
+  e.preventDefault()
+  emit('update:year', ys[ni])
+}
+
 // 世纪刻度
 const ticks = computed(() => {
   const out = []
@@ -69,10 +87,12 @@ const showDots = computed(() => props.years.length <= 400)
       ref="trackRef"
       class="track"
       role="slider"
+      tabindex="0"
       aria-label="年份"
       :aria-valuenow="year"
       :aria-valuemin="minY"
       :aria-valuemax="maxY"
+      @keydown="onKey"
       @pointerdown="onPointerDown"
       @pointermove="onPointerMove"
       @pointerup="onPointerUp"
