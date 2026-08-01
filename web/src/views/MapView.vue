@@ -1,12 +1,24 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useMapData } from '@/composables/useMapData'
+import { useToast } from '@/composables/useToast'
 import AppLoading from '@/components/AppLoading.vue'
+import AtlasMap from '@/components/AtlasMap.vue'
 
 const { data, error, loadMap, activeShapes } = useMapData()
+const { toast } = useToast()
 const loading = ref(true)
 const year = ref(-221) // 临时：Task 7 接入时间刷
 const shapes = computed(() => activeShapes(year.value))
+const full = computed(() => {
+  const [x, y, w, h] = (data.value?.viewBox || '0 0 1000 800').split(' ').map(Number)
+  return { x, y, w, h }
+})
+
+// 临时：Task 8 替换为双模式选择逻辑
+function onSelect(s) {
+  if (s) toast(s.dyn ? s.n : `${s.n}（中立政权）`)
+}
 
 async function init() {
   loading.value = true
@@ -33,15 +45,15 @@ onMounted(init)
       <button @click="init">重新加载</button>
     </div>
 
-    <!-- 冒烟：底图 + 当前年活跃政权数（Task 6 替换为 AtlasMap） -->
-    <svg v-else :viewBox="data.viewBox" class="smoke-map">
-      <path :d="data.basemap.coast" fill="none" stroke="var(--text-soft)" stroke-width="1" />
-      <path v-for="(r, i) in data.basemap.rivers" :key="i" :d="r"
-            fill="none" stroke="var(--accent-soft)" stroke-width="1" />
-      <text x="20" y="30" font-size="18" fill="var(--text)">
-        前221年 · 活跃政权 {{ shapes.length }} 个 · 城市 {{ data.basemap.cities.length }} 个
-      </text>
-    </svg>
+    <AtlasMap
+      v-else
+      :basemap="data.basemap"
+      :full="full"
+      :shapes="shapes"
+      :selected-id="null"
+      :focus-key="0"
+      @select="onSelect"
+    />
   </div>
 </template>
 
@@ -56,14 +68,6 @@ onMounted(init)
   margin: 0 0 14px;
   color: var(--text-soft);
   font-size: 14px;
-}
-
-.smoke-map {
-  width: 100%;
-  height: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
 }
 
 .error-box {
