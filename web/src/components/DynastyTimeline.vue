@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useMeta } from '@/composables/useMeta'
+import { yearLabel, reducedMotion } from '@/utils'
 
 const props = defineProps({
   dynasties: { type: Array, required: true },
@@ -57,10 +58,6 @@ const targetView = ref(null)
 let animId = null
 let flightTimer = null
 
-function reducedMotion() {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
-}
-
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
@@ -94,12 +91,14 @@ function xOf(y) {
   const { start, end } = view.value
   const denom = scaleYear(end) - scaleYear(start)
   if (denom <= 0) return 0
-  return ((scaleYear(y) - scaleYear(start)) / denom) * 1000
+  return ((scaleYear(y) - scaleYear(start)) / denom) * VIEW_W.value
 }
 
 const widthOf = (d) => Math.max(0, xOf(d.end) - xOf(d.start))
 
-const VIEW_W = 1000
+// 视图坐标宽度随容器收窄（420~1000）：窄屏下 1 单位≈1px，朝代名/年份标签保持可读字号
+const containerW = ref(1000)
+const VIEW_W = computed(() => Math.min(1000, Math.max(420, Math.round(containerW.value))))
 const ROW_H = 56
 const ROW_GAP = 6
 
@@ -135,8 +134,6 @@ const visible = computed(() =>
 
 const viewH = computed(() => layout.value.length * (ROW_H + ROW_GAP) + 26)
 const rowY = (row) => 6 + row * (ROW_H + ROW_GAP)
-
-const yearLabel = (y) => (y < 0 ? `前${-y}` : `${y}`)
 
 // ---- 自适应年代刻度：按视野跨度选步长，保持屏上约 6~10 个刻度 ----
 const TICK_STEPS = [10, 25, 50, 100, 200, 500, 1000]
@@ -348,18 +345,23 @@ function onPointerMove(ev) {
     }
     return
   }
-  const prev = pointers.get(ev.pointerId)
   pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
 
   if (pointers.size === 2) {
-    // pinch
-    const pts = Array.from(pointers.values())
-    const prevPts = [prev, { x: ev.clientX, y: ev.clientY }]
-    // 简单处理：用当前两点距离与初始 pinch 距离比较
+    // pinch：始终以捏合起点时的视图（pinchView）为基准按比例缩放。
+    // 不能逐帧把总比例乘在当前视图上，否则会指数发散、缩放失控
     if (dragStart.value && dragStart.value.pinchD0) {
-      const d1 = distance(pts[0], pts[1])
+      const pts = Array.from(pointers.values())
+      const d1 = Math.max(24, distance(pts[0], pts[1]))
+      const v0 = dragStart.value.pinchView
+      const span0 = v0.end - v0.start
+      let newSpan = span0 * (dragStart.value.pinchD0 / d1)
+      newSpan = Math.min(T_LIN_END - T_PRE_START, Math.max(60, newSpan))
+      // 锚点：双指中点下的年份保持在原位
       const c = midYear(pts[0], pts[1])
-      zoom(dragStart.value.pinchD0 / d1, c, false)
+      const w = clampWindow(c - newSpan / 2, newSpan)
+      view.value = w
+      targetView.value = { ...w }
     }
     return
   }
@@ -404,6 +406,17 @@ function onPointerUp(e) {
   const wasPinch = !!(dragStart.value && dragStart.value.pinchD0)
   const wasDrag = suppressClick.value
   pointers.delete(e.pointerId)
+  // 捏合后先抬起一指：以剩余手指的当前位置重新锚定拖拽起点，
+  // 否则 pinch → 单指平移切换瞬间视图会跳变
+  if (wasPinch && pointers.size === 1) {
+    const [p] = pointers.values()
+    dragStart.value = { x: p.x, yearStart: view.value.start, yearEnd: view.value.end }
+    lastMoveT = 0
+    lastMoveX = p.x
+    vel = 0
+    suppressClick.value = true
+    return
+  }
   dragStart.value = null
   // 点击选择：单指抬起、未拖拽、未捏合时按命中检测选择朝代
   if (!wasDrag && !wasPinch && pointers.size === 0) {
@@ -561,12 +574,12 @@ const miniRows = computed(() => {
 })
 
 const miniH = computed(() => miniRows.value.length * (MINI_ROW + MINI_GAP) + 6)
-const miniX = (y) => scaleYear(y) * VIEW_W
+const miniX = (y) => scaleYear(y) * VIEW_W.value
 const miniW = (d) => Math.max(2, miniX(d.end) - miniX(d.start))
 
 const miniViewRect = computed(() => ({
-  x: scaleYear(view.value.start) * VIEW_W,
-  w: Math.max(6, (scaleYear(view.value.end) - scaleYear(view.value.start)) * VIEW_W),
+  x: scaleYear(view.value.start) * VIEW_W.value,
+  w: Math.max(6, (scaleYear(view.value.end) - scaleYear(view.value.start)) * VIEW_W.value),
 }))
 
 // 抓取点相对视野中心的年偏移：抓住视野框内部拖不跳变，点框外则以点击处为中心
@@ -609,10 +622,17 @@ function onMiniUp(e) {
 }
 
 const isTouch = ref(false)
+let resizeObs = null
 
 onMounted(() => {
   window.addEventListener('keydown', onKey)
   isTouch.value = window.matchMedia('(hover: none)').matches
+  // 跟踪容器宽度驱动响应式 VIEW_W（桌面 ≥1000px 时与旧行为一致）
+  resizeObs = new ResizeObserver((entries) => {
+    const w = entries[0]?.contentRect.width
+    if (w > 0) containerW.value = w
+  })
+  if (timelineRef.value) resizeObs.observe(timelineRef.value)
 })
 
 onUnmounted(() => {
@@ -620,6 +640,7 @@ onUnmounted(() => {
   cancelAnimationFrame(animId)
   clearTimeout(flightTimer)
   stopMomentum()
+  resizeObs?.disconnect()
 })
 
 const chaptersOf = (d) => d.chapterIds.map((id) => chapterById(id)).filter(Boolean)
@@ -725,7 +746,7 @@ const controlsVisible = computed(
       <text
         v-for="y in ticks"
         :key="'l' + y"
-        :x="Math.min(984, Math.max(16, xOf(y)))"
+        :x="Math.min(VIEW_W - 16, Math.max(16, xOf(y)))"
         :y="viewH - 3"
         text-anchor="middle"
         class="tick-label"
@@ -875,9 +896,12 @@ const controlsVisible = computed(
   outline: none;
 }
 
-.dyn-rect:hover,
-.dyn-rect.hovered {
-  filter: brightness(1.18) drop-shadow(0 0 7px rgba(0, 0, 0, 0.35));
+/* hover 高亮只在有悬停能力的设备上生效，避免触屏点按后高亮粘住 */
+@media (hover: hover) {
+  .dyn-rect:hover,
+  .dyn-rect.hovered {
+    filter: brightness(1.18) drop-shadow(0 0 7px rgba(0, 0, 0, 0.35));
+  }
 }
 
 .dyn-rect.active {
