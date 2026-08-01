@@ -16,6 +16,7 @@ import { useToast } from '@/composables/useToast'
 import Lightbox from '@/components/Lightbox.vue'
 import AppLoading from '@/components/AppLoading.vue'
 import BackToTop from '@/components/BackToTop.vue'
+import DynastyRail from '@/components/DynastyRail.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,6 +37,20 @@ const scrollPct = ref(0)
 const imageLoaded = ref({})
 const slideDir = ref('next')
 const slideName = computed(() => 'slide-' + slideDir.value)
+
+// ---- 窄屏朝代抽屉（<1100px 时左轨改为浮动按钮 + 抽屉） ----
+const isNarrow = ref(window.matchMedia('(max-width: 1099px)').matches)
+const drawerOpen = ref(false)
+let narrowMq = null
+
+function onNarrowChange(e) {
+  isNarrow.value = e.matches
+  if (!e.matches) drawerOpen.value = false
+}
+
+watch(drawerOpen, (v) => {
+  document.body.style.overflow = v ? 'hidden' : ''
+})
 
 // 当前章节在全书中的位置（上一章 / 下一章）
 const all = computed(() =>
@@ -171,6 +186,8 @@ function revealStyle(i) {
 onMounted(() => {
   loadChapter()
   window.addEventListener('keydown', onWindowKey)
+  narrowMq = window.matchMedia('(max-width: 1099px)')
+  narrowMq.addEventListener('change', onNarrowChange)
 })
 
 onUnmounted(() => {
@@ -179,6 +196,8 @@ onUnmounted(() => {
   }
   revealObserver?.disconnect()
   window.removeEventListener('keydown', onWindowKey)
+  narrowMq?.removeEventListener('change', onNarrowChange)
+  document.body.style.overflow = ''
 })
 
 function onImageLoad(imgId) {
@@ -215,6 +234,10 @@ function reducedMotion() {
 
 function onWindowKey(e) {
   if (lightbox.value.visible) return
+  if (e.key === 'Escape' && drawerOpen.value) {
+    drawerOpen.value = false
+    return
+  }
   const tag = e.target?.tagName
   if (tag === 'INPUT' || tag === 'TEXTAREA') return
   if (e.key === 'ArrowLeft') {
@@ -261,6 +284,10 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
       <div :style="{ width: scrollPct + '%' }" />
     </div>
 
+    <div class="read-layout">
+      <DynastyRail v-if="chapter && !isNarrow" :current-chapter-id="chapter.id" />
+
+      <div class="reader-col">
     <Transition :name="slideName" mode="out-in">
     <div v-if="chapter" :key="chapter.id" class="reader">
     <!-- 顶部章节信息 -->
@@ -337,6 +364,30 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
     </nav>
     </div>
     </Transition>
+      </div>
+    </div>
+
+    <!-- 窄屏：浮动朝代按钮 + 抽屉式导航 -->
+    <button
+      v-if="chapter && isNarrow && !drawerOpen"
+      class="rail-fab"
+      :style="dynasty ? { background: dynasty.color } : null"
+      aria-label="打开朝代导航"
+      @click="drawerOpen = true"
+    >
+      {{ dynasty?.name || '朝代' }}
+    </button>
+
+    <Transition name="drawer">
+      <div v-if="drawerOpen && chapter" class="rail-drawer">
+        <div class="drawer-backdrop" @click="drawerOpen = false" />
+        <DynastyRail
+          :current-chapter-id="chapter.id"
+          class="drawer-rail"
+          @navigate="drawerOpen = false"
+        />
+      </div>
+    </Transition>
   </template>
 
   <Lightbox
@@ -355,6 +406,78 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
 .reader {
   max-width: 860px;
   margin: 0 auto;
+}
+
+/* 左轨 + 正文双栏布局 */
+.read-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.reader-col {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 窄屏浮动朝代按钮 */
+.rail-fab {
+  position: fixed;
+  left: 16px;
+  bottom: 20px;
+  z-index: 40;
+  border: none;
+  border-radius: 999px;
+  padding: 8px 16px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+/* 窄屏抽屉 */
+.rail-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 8, 4, 0.45);
+}
+
+.rail-drawer .drawer-rail {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 280px;
+  max-height: none;
+  border-radius: 0;
+}
+
+.drawer-enter-active,
+.drawer-leave-active {
+  transition: opacity 0.22s ease;
+}
+
+.drawer-enter-active .drawer-rail,
+.drawer-leave-active .drawer-rail {
+  transition: transform 0.25s ease;
+}
+
+.drawer-enter-from,
+.drawer-leave-to {
+  opacity: 0;
+}
+
+.drawer-enter-from .drawer-rail,
+.drawer-leave-to .drawer-rail {
+  transform: translateX(-100%);
 }
 
 .read-progress {
@@ -671,6 +794,13 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   .slide-next-leave-active,
   .slide-prev-enter-active,
   .slide-prev-leave-active {
+    transition: none;
+  }
+
+  .drawer-enter-active,
+  .drawer-leave-active,
+  .drawer-enter-active .drawer-rail,
+  .drawer-leave-active .drawer-rail {
     transition: none;
   }
 }

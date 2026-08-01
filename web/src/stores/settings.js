@@ -15,6 +15,7 @@ export const useSettingsStore = defineStore('settings', {
       fontSize: saved.fontSize ?? 18, // px
       lineHeight: saved.lineHeight ?? 1.9,
       theme: saved.theme ?? 'paper', // paper | dark | sepia
+      railCollapsed: saved.railCollapsed ?? false, // 阅读页朝代竖轨是否收起
     }
   },
   actions: {
@@ -30,11 +31,16 @@ export const useSettingsStore = defineStore('settings', {
       this.theme = t
       this.persist()
     },
+    toggleRailCollapsed() {
+      this.railCollapsed = !this.railCollapsed
+      this.persist()
+    },
     persist() {
       localStorage.setItem(KEY, JSON.stringify({
         fontSize: this.fontSize,
         lineHeight: this.lineHeight,
         theme: this.theme,
+        railCollapsed: this.railCollapsed,
       }))
     },
   },
