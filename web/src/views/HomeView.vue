@@ -78,6 +78,7 @@ onMounted(init)
       v-else
       :dynasties="dynasties.dynasties"
       :keyword="debouncedKeyword"
+      @update:keyword="keyword = $event"
     />
 
     <BackToTop />

@@ -8,6 +8,8 @@ const props = defineProps({
   keyword: { type: String, default: '' },
 })
 
+const emit = defineEmits(['update:keyword'])
+
 const { chapterById } = useMeta()
 const selected = ref(null)
 const hover = ref(null)
@@ -502,6 +504,7 @@ function onKey(e) {
   if (e.key === 'Escape') {
     selected.value = null
     matchedDynasty.value = null
+    emit('update:keyword', '') // 搜索框与匹配高亮一并复位
     resetView()
   }
 }
@@ -514,6 +517,11 @@ function onDynKey(e, d) {
 }
 
 // ---- 搜索联动 ----
+// 视图变化（拖拽/缩放/运镜）后 tooltip 位置与内容已过期，隐藏待下次 hover
+watch(view, () => {
+  tooltip.value.visible = false
+})
+
 watch(
   () => props.keyword,
   (kw) => {
