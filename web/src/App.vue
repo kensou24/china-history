@@ -14,8 +14,14 @@ const themes = [
   { id: 'dark', label: '夜' },
 ]
 
-function setTheme(t) {
+function setTheme(t, animate = false) {
   settings.setTheme(t)
+  // 切换瞬间挂过渡类，全站颜色 300ms 渐变；首次加载与 reduced-motion 不触发
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (animate && !reduce) {
+    document.body.classList.add('theme-anim')
+    setTimeout(() => document.body.classList.remove('theme-anim'), 350)
+  }
   document.body.dataset.theme = t
 }
 
@@ -38,7 +44,7 @@ setTheme(settings.theme)
         :key="t.id"
         :class="{ active: settings.theme === t.id }"
         :aria-pressed="settings.theme === t.id"
-        @click="setTheme(t.id)"
+        @click="setTheme(t.id, true)"
       >
         {{ t.label }}
       </button>

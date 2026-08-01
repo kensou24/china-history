@@ -42,7 +42,7 @@ function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
-function setView(v, animate = true) {
+function setView(v, animate = true, dur = 350) {
   targetView.value = { ...v }
   cancelAnimationFrame(animId)
   if (!animate || reducedMotion()) {
@@ -51,7 +51,6 @@ function setView(v, animate = true) {
   }
   const from = { ...view.value }
   const t0 = performance.now()
-  const dur = 350
   function step(now) {
     const p = Math.min(1, (now - t0) / dur)
     const e = easeInOutCubic(p)
@@ -116,13 +115,13 @@ const rowY = (row) => 6 + row * (ROW_H + ROW_GAP)
 const yearLabel = (y) => (y < 0 ? `前${-y}` : `${y}`)
 
 // ---- 缩放 ----
-function zoom(factor, centerYear, animate = true) {
+function zoom(factor, centerYear, animate = true, dur = 350) {
   const cur = targetView.value || view.value
   const span = cur.end - cur.start
   const newSpan = span * factor
   if (newSpan < 60) return // 最小窗口 60 年
   if (newSpan > T_LIN_END - T_PRE_START) {
-    setView({ start: T_PRE_START, end: T_LIN_END }, animate)
+    setView({ start: T_PRE_START, end: T_LIN_END }, animate, dur)
     return
   }
   const c = centerYear ?? (cur.start + cur.end) / 2
@@ -137,7 +136,7 @@ function zoom(factor, centerYear, animate = true) {
     s -= e - T_LIN_END
     e = T_LIN_END
   }
-  setView({ start: Math.max(T_PRE_START, s), end: Math.min(T_LIN_END, e) }, animate)
+  setView({ start: Math.max(T_PRE_START, s), end: Math.min(T_LIN_END, e) }, animate, dur)
 }
 
 function zoomIn() {
@@ -167,12 +166,72 @@ function yearAtClientX(cx) {
   return T_PRE_END + ((targetScale - PRE_FRAC) / (1 - PRE_FRAC)) * (T_LIN_END - T_PRE_END)
 }
 
-// 滚轮缩放（以鼠标位置为锚点）
+// 滚轮缩放（以鼠标位置为锚点，短时长缓动让连续滚动平滑追赶目标）
 function onWheel(e) {
   e.preventDefault()
-  cancelAnimationFrame(animId)
+  stopMomentum()
   const c = yearAtClientX(e.clientX)
-  zoom(e.deltaY > 0 ? 1.25 : 0.8, c, false)
+  zoom(e.deltaY > 0 ? 1.25 : 0.8, c, true, 180)
+}
+
+// ---- 拖拽惯性 ----
+let vel = 0 // 拖拽速度（px/ms）
+let lastMoveT = 0
+let lastMoveX = 0
+let momentumId = null
+
+function stopMomentum() {
+  cancelAnimationFrame(momentumId)
+  momentumId = null
+  vel = 0
+}
+
+// 按像素增量平移视图（带回弹边界），返回 false 表示撞到边缘
+function panByPx(dxPx) {
+  const rect = svgRef.value?.getBoundingClientRect()
+  if (!rect) return false
+  const span = view.value.end - view.value.start
+  const yearDx = -(dxPx / rect.width) * span
+  let s = view.value.start + yearDx
+  let e = view.value.end + yearDx
+  let clamped = false
+  if (s < T_PRE_START) {
+    e += T_PRE_START - s
+    s = T_PRE_START
+    clamped = true
+  }
+  if (e > T_LIN_END) {
+    s -= e - T_LIN_END
+    e = T_LIN_END
+    clamped = true
+  }
+  view.value = { start: s, end: e }
+  targetView.value = { start: s, end: e }
+  return !clamped
+}
+
+// 松手后的惯性滑行：按初速度继续平移，指数衰减
+function startMomentum() {
+  if (reducedMotion() || Math.abs(vel) < 0.05) {
+    vel = 0
+    return
+  }
+  let prevT = performance.now()
+  const step = (now) => {
+    const dt = Math.min(50, now - prevT)
+    prevT = now
+    if (!panByPx(vel * dt)) {
+      stopMomentum()
+      return
+    }
+    vel *= Math.exp(-dt / 180)
+    if (Math.abs(vel) < 0.02) {
+      stopMomentum()
+      return
+    }
+    momentumId = requestAnimationFrame(step)
+  }
+  momentumId = requestAnimationFrame(step)
 }
 
 // ---- 拖拽 / 触摸平移与缩放 ----
@@ -192,6 +251,10 @@ function midYear(p1, p2) {
 
 function onPointerDown(e) {
   if (!svgRef.value) return
+  cancelAnimationFrame(animId)
+  stopMomentum()
+  lastMoveT = 0
+  lastMoveX = e.clientX
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY })
   svgRef.value.setPointerCapture(e.pointerId)
   dragStart.value = { x: e.clientX, yearStart: view.value.start, yearEnd: view.value.end }
@@ -253,6 +316,14 @@ function onPointerMove(ev) {
   }
 
   if (pointers.size === 1 && dragStart.value) {
+    // 追踪拖拽速度（平滑滤波），供松手后的惯性滑行使用
+    const now = performance.now()
+    if (lastMoveT && now > lastMoveT) {
+      const v = (ev.clientX - lastMoveX) / (now - lastMoveT)
+      vel = vel * 0.6 + v * 0.4
+    }
+    lastMoveT = now
+    lastMoveX = ev.clientX
     const dx = ev.clientX - dragStart.value.x
     if (Math.abs(dx) > 4) suppressClick.value = true
     const rect = svgRef.value.getBoundingClientRect()
@@ -274,8 +345,8 @@ function onPointerMove(ev) {
       s -= e - T_LIN_END
       e = T_LIN_END
     }
-    cancelAnimationFrame(animId)
     view.value = { start: s, end: e }
+    targetView.value = { start: s, end: e }
   }
 }
 
@@ -289,6 +360,8 @@ function onPointerUp(e) {
   if (!wasDrag && !wasPinch && pointers.size === 0) {
     const d = dynastyAtClient(e.clientX, e.clientY)
     if (d) select(d)
+  } else if (wasDrag && !wasPinch && pointers.size === 0) {
+    startMomentum()
   }
 }
 
@@ -329,6 +402,19 @@ function onLeave() {
   hover.value = null
   tooltip.value.visible = false
 }
+
+// hover 聚光灯：悬停朝代 + 时间重叠的并立政权保持点亮，其余压暗；
+// 搜索命中的朝代始终不被压暗
+const litIds = computed(() => {
+  if (!hover.value) return null
+  const h = hover.value
+  const set = new Set([h.id])
+  for (const d of visible.value) {
+    if (d.start < h.end && d.end > h.start) set.add(d.id)
+  }
+  if (matchedDynasty.value) set.add(matchedDynasty.value)
+  return set
+})
 
 function select(d) {
   if (suppressClick.value) return
@@ -398,6 +484,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
   cancelAnimationFrame(animId)
+  stopMomentum()
 })
 
 const chaptersOf = (d) => d.chapterIds.map((id) => chapterById(id)).filter(Boolean)
@@ -435,7 +522,15 @@ const controlsVisible = computed(
       <line :x1="xOf(view.start)" y1="0" :x2="xOf(view.end)" y2="0" class="axis-line" />
 
       <!-- 朝代区块 -->
-      <g v-for="d in visible" :key="d.id">
+      <g
+        v-for="d in visible"
+        :key="d.id"
+        class="dyn-g"
+        :class="{
+          dim: litIds && !litIds.has(d.id),
+          linked: litIds && hover?.id !== d.id && litIds.has(d.id),
+        }"
+      >
         <rect
           :x="d.x"
           :y="rowY(d.row)"
@@ -584,15 +679,27 @@ const controlsVisible = computed(
   stroke-width: 1;
 }
 
+.dyn-g {
+  transition: opacity 0.22s ease;
+}
+
+.dyn-g.dim {
+  opacity: 0.3;
+}
+
+.dyn-g.linked .dyn-rect {
+  filter: brightness(1.12);
+}
+
 .dyn-rect {
   cursor: pointer;
-  transition: filter 0.15s, opacity 0.15s;
+  transition: filter 0.2s, opacity 0.2s;
   outline: none;
 }
 
 .dyn-rect:hover,
 .dyn-rect.hovered {
-  filter: brightness(1.15);
+  filter: brightness(1.18) drop-shadow(0 0 7px rgba(0, 0, 0, 0.35));
 }
 
 .dyn-rect.active {
