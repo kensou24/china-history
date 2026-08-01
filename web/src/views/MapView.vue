@@ -1,14 +1,16 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useMapData } from '@/composables/useMapData'
 import { useToast } from '@/composables/useToast'
+import { reducedMotion } from '@/utils'
 import AppLoading from '@/components/AppLoading.vue'
 import AtlasMap from '@/components/AtlasMap.vue'
+import MapTimeBar from '@/components/MapTimeBar.vue'
 
 const { data, error, loadMap, activeShapes } = useMapData()
 const { toast } = useToast()
 const loading = ref(true)
-const year = ref(-221) // 临时：Task 7 接入时间刷
+const year = ref(-221) // 默认秦代表年（changeYears 含 -221）
 const shapes = computed(() => activeShapes(year.value))
 const full = computed(() => {
   const [x, y, w, h] = (data.value?.viewBox || '0 0 1000 800').split(' ').map(Number)
@@ -18,6 +20,52 @@ const full = computed(() => {
 // 临时：Task 8 替换为双模式选择逻辑
 function onSelect(s) {
   if (s) toast(s.dyn ? s.n : `${s.n}（中立政权）`)
+}
+
+const playing = ref(false)
+let playTimer = null
+
+// changeYears 中离 y 最近的下标
+function nearestIdx(y) {
+  const ys = data.value.changeYears
+  let best = 0
+  for (let i = 0; i < ys.length; i++) {
+    if (Math.abs(ys[i] - y) < Math.abs(ys[best] - y)) best = i
+  }
+  return best
+}
+
+// 步进到上/下一个变化年；已在末尾返回 false（播放自动停）
+function stepYear(d) {
+  const ys = data.value.changeYears
+  const i = Math.min(ys.length - 1, Math.max(0, nearestIdx(year.value) + d))
+  onYearUpdate(ys[i])
+  return i < ys.length - 1
+}
+
+function togglePlay() {
+  if (reducedMotion()) {
+    stepYear(1) // 减少动态：播放按钮变单步
+    return
+  }
+  playing.value = !playing.value
+}
+
+watch(playing, (v) => {
+  clearInterval(playTimer)
+  playTimer = null
+  if (v) {
+    playTimer = setInterval(() => {
+      if (!stepYear(1)) playing.value = false
+    }, 1200)
+  }
+})
+
+onUnmounted(() => clearInterval(playTimer))
+
+// 临时版：Task 8 扩展为切换 year 模式 + 清选中
+function onYearUpdate(y) {
+  year.value = y
 }
 
 async function init() {
@@ -45,15 +93,23 @@ onMounted(init)
       <button @click="init">重新加载</button>
     </div>
 
-    <AtlasMap
-      v-else
-      :basemap="data.basemap"
-      :full="full"
-      :shapes="shapes"
-      :selected-id="null"
-      :focus-key="0"
-      @select="onSelect"
-    />
+    <template v-else>
+      <AtlasMap
+        :basemap="data.basemap"
+        :full="full"
+        :shapes="shapes"
+        :selected-id="null"
+        :focus-key="0"
+        @select="onSelect"
+      />
+      <MapTimeBar
+        :years="data.changeYears"
+        :year="year"
+        :playing="playing"
+        @update:year="onYearUpdate"
+        @toggle-play="togglePlay"
+      />
+    </template>
   </div>
 </template>
 
