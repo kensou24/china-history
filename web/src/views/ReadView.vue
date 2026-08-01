@@ -103,6 +103,12 @@ async function loadChapter() {
     const vc = volData.value.chapters.find((c) => c.id === ch.id)
     chapter.value = { ...ch, blocks: vc.blocks }
     document.title = `${ch.title} · 中国通史学习`
+    // 空闲时预取下一卷，跨卷翻章零 loading；失败静默（翻章时会自然重试）
+    const nextVol = volId + 1
+    if (nextVol <= 5) {
+      const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 2000))
+      idle(() => loadVolume(nextVol).catch(() => {}))
+    }
   } catch (e) {
     if (seq === loadSeq) error.value = e.message || '章节加载失败'
   } finally {
