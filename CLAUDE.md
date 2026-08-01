@@ -60,6 +60,9 @@ npm run build      # 产物 web/dist（部署前须先 sync_web_assets）
 - **`position: fixed` 在 transform 中的父元素内会失效**：所以阅读进度条必须放在章节滑动 Transition 容器之外。
 - **`.reader-body` 是独立滚动容器**：其 scroll 事件不冒泡（App.vue 顶栏自动隐藏用 capture 阶段监听才能捕获）；IntersectionObserver 要显式传 `root`。
 - **DynastyTimeline 用 svg 层手动命中检测**（`setPointerCapture` 会吞掉 rect 自身的 click/mousemove），新增可点元素走 `dynastyAtClient` 而非给 rect 加事件。
+- **DynastyTimeline 的 `VIEW_W` 是响应式的**（ResizeObserver 驱动，420~1000，窄屏 1 单位≈1px 保证文字可读）：新增依赖视图坐标的逻辑必须用 `VIEW_W.value`，不要硬编码 1000；pinch 缩放必须以 `pinchView`（捏合起点视图）为基准，逐帧乘当前视图会指数发散。
+- **BackToTop 由各视图各自持有**（阅读页传 `:target="scrollEl"`，其余页用默认 window），不要在 App.vue 挂全局实例——会与视图内的实例重叠重复。
+- **hover 样式一律包 `@media (hover: hover)`**：裸 `:hover` 在触屏上点按后会粘住高亮。
 - **章节 keyed Transition out-in 下 DOM 会重建**：滚动监听/进度恢复/观察器统一由 `watch(scrollEl, …, {flush:'post'})` 重挂，不要在 onMounted 里一次性绑定。
 - SVG 元素上 CSS transform 的原点与 HTML 不同；朝代块的高亮用 filter/opacity，不用 transform。
 
