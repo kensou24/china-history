@@ -29,7 +29,7 @@ npm run build      # 产物 web/dist（部署前须先 sync_web_assets）
 ## 架构总览
 
 ### 单向数据流
-`EPUB → scripts/ → data/（不入库，可再生）→ sync → web/public/ → 前端 fetch 静态 JSON`。
+`EPUB → scripts/ → data/（不入库，可再生）→ sync → web/public/（入库，部署用）→ 前端 fetch 静态 JSON`。
 前端永不写数据；所有"动态"都是纯前端计算。
 
 ### 前端（Vite + Vue 3 `<script setup>` + Vue Router 4 hash 模式 + Pinia）
@@ -69,4 +69,4 @@ npm run build      # 产物 web/dist（部署前须先 sync_web_assets）
 ## 提交规范
 
 中文 conventional commits，scope 用模块名：`feat(ui): …` / `fix(timeline): …` / `fix(read): …` / `feat(read): …`。
-标题一行说清改动，body 列要点；EPUB 与 `data/` 不入库。
+标题一行说清改动，body 列要点；EPUB 与管线源头 `data/` 不入库（`web/public/` 的同步副本入库，供静态部署直接构建）。

@@ -1,0 +1,587 @@
+{
+ "dynasties": [
+  {
+   "id": "prehistoric",
+   "name": "史前",
+   "start": -3000,
+   "end": -2070,
+   "color": "#8d8d8d",
+   "alias": [
+    "远古",
+    "石器时代",
+    "上古"
+   ],
+   "chapterIds": [
+    "ch001",
+    "ch002",
+    "ch003",
+    "ch004",
+    "ch005"
+   ]
+  },
+  {
+   "id": "xia",
+   "name": "夏",
+   "start": -2070,
+   "end": -1600,
+   "color": "#b58900",
+   "alias": [
+    "夏朝",
+    "夏代",
+    "夏王朝"
+   ],
+   "chapterIds": [
+    "ch006"
+   ]
+  },
+  {
+   "id": "shang",
+   "name": "商",
+   "start": -1600,
+   "end": -1046,
+   "color": "#cb4b16",
+   "alias": [
+    "商朝",
+    "殷商",
+    "商代",
+    "殷"
+   ],
+   "chapterIds": [
+    "ch007",
+    "ch008"
+   ]
+  },
+  {
+   "id": "west-zhou",
+   "name": "西周",
+   "start": -1046,
+   "end": -771,
+   "color": "#dc322f",
+   "alias": [
+    "西周",
+    "周朝",
+    "周代",
+    "周王室"
+   ],
+   "chapterIds": [
+    "ch009",
+    "ch010",
+    "ch011"
+   ]
+  },
+  {
+   "id": "spring-autumn",
+   "name": "春秋",
+   "start": -770,
+   "end": -476,
+   "color": "#d33682",
+   "alias": [
+    "春秋"
+   ],
+   "chapterIds": [
+    "ch012",
+    "ch013"
+   ]
+  },
+  {
+   "id": "warring-states",
+   "name": "战国",
+   "start": -475,
+   "end": -221,
+   "color": "#6c71c4",
+   "alias": [
+    "战国",
+    "列国",
+    "诸子百家"
+   ],
+   "chapterIds": [
+    "ch014",
+    "ch015",
+    "ch016",
+    "ch017"
+   ]
+  },
+  {
+   "id": "qin",
+   "name": "秦",
+   "start": -221,
+   "end": -207,
+   "color": "#2aa198",
+   "alias": [
+    "秦朝",
+    "秦代",
+    "秦始皇",
+    "楚汉"
+   ],
+   "chapterIds": [
+    "ch018",
+    "ch019"
+   ]
+  },
+  {
+   "id": "west-han",
+   "name": "西汉",
+   "start": -202,
+   "end": 9,
+   "color": "#859900",
+   "alias": [
+    "西汉",
+    "汉朝",
+    "汉代",
+    "汉武",
+    "文景",
+    "昭宣"
+   ],
+   "chapterIds": [
+    "ch020",
+    "ch021",
+    "ch022",
+    "ch023",
+    "ch024",
+    "ch027"
+   ]
+  },
+  {
+   "id": "xin",
+   "name": "新",
+   "start": 9,
+   "end": 23,
+   "color": "#93a1a1",
+   "alias": [
+    "王莽",
+    "新朝",
+    "新莽"
+   ],
+   "chapterIds": [
+    "ch025"
+   ]
+  },
+  {
+   "id": "east-han",
+   "name": "东汉",
+   "start": 25,
+   "end": 220,
+   "color": "#b58900",
+   "alias": [
+    "东汉",
+    "光武",
+    "党锢"
+   ],
+   "chapterIds": [
+    "ch026",
+    "ch028",
+    "ch029"
+   ]
+  },
+  {
+   "id": "three-kingdoms",
+   "name": "三国",
+   "start": 220,
+   "end": 280,
+   "color": "#cb4b16",
+   "alias": [
+    "三国",
+    "魏",
+    "蜀",
+    "吴",
+    "诸葛亮"
+   ],
+   "chapterIds": [
+    "ch030",
+    "ch031"
+   ]
+  },
+  {
+   "id": "west-jin",
+   "name": "西晋",
+   "start": 265,
+   "end": 316,
+   "color": "#dc322f",
+   "alias": [
+    "西晋",
+    "晋朝",
+    "魏晋"
+   ],
+   "chapterIds": [
+    "ch032",
+    "ch033"
+   ]
+  },
+  {
+   "id": "east-jin",
+   "name": "东晋",
+   "start": 317,
+   "end": 420,
+   "color": "#d33682",
+   "alias": [
+    "东晋",
+    "门阀",
+    "魏晋佛教"
+   ],
+   "chapterIds": [
+    "ch034",
+    "ch039"
+   ]
+  },
+  {
+   "id": "north-south",
+   "name": "南北朝",
+   "start": 420,
+   "end": 589,
+   "color": "#6c71c4",
+   "alias": [
+    "南北朝",
+    "南朝",
+    "北朝",
+    "梁武帝",
+    "北魏",
+    "陈朝"
+   ],
+   "chapterIds": [
+    "ch035",
+    "ch036",
+    "ch037",
+    "ch038"
+   ]
+  },
+  {
+   "id": "sui",
+   "name": "隋",
+   "start": 581,
+   "end": 618,
+   "color": "#2aa198",
+   "alias": [
+    "隋",
+    "隋朝",
+    "炀帝"
+   ],
+   "chapterIds": [
+    "ch040",
+    "ch041"
+   ]
+  },
+  {
+   "id": "tang",
+   "name": "唐",
+   "start": 618,
+   "end": 907,
+   "color": "#859900",
+   "alias": [
+    "唐",
+    "唐朝",
+    "唐代",
+    "贞观",
+    "武则天",
+    "安史",
+    "吐蕃",
+    "敦煌"
+   ],
+   "chapterIds": [
+    "ch042",
+    "ch043",
+    "ch044",
+    "ch045",
+    "ch046",
+    "ch047",
+    "ch048",
+    "ch049",
+    "ch050",
+    "ch051"
+   ]
+  },
+  {
+   "id": "five-dynasties",
+   "name": "五代十国",
+   "start": 907,
+   "end": 960,
+   "color": "#93a1a1",
+   "alias": [
+    "五代",
+    "五代十国"
+   ],
+   "chapterIds": [
+    "ch052"
+   ]
+  },
+  {
+   "id": "north-song",
+   "name": "北宋",
+   "start": 960,
+   "end": 1127,
+   "color": "#268bd2",
+   "alias": [
+    "北宋",
+    "宋太祖",
+    "澶渊",
+    "王安石",
+    "靖康",
+    "东京"
+   ],
+   "chapterIds": [
+    "ch053",
+    "ch054",
+    "ch055",
+    "ch056",
+    "ch057",
+    "ch060",
+    "ch061",
+    "ch062"
+   ]
+  },
+  {
+   "id": "liao",
+   "name": "辽",
+   "start": 916,
+   "end": 1125,
+   "color": "#6c71c4",
+   "alias": [
+    "辽",
+    "契丹",
+    "西辽",
+    "辽金"
+   ],
+   "chapterIds": [
+    "ch063",
+    "ch064",
+    "ch067"
+   ]
+  },
+  {
+   "id": "west-xia",
+   "name": "西夏",
+   "start": 1038,
+   "end": 1227,
+   "color": "#cb4b16",
+   "alias": [
+    "西夏"
+   ],
+   "chapterIds": [
+    "ch068"
+   ]
+  },
+  {
+   "id": "jin",
+   "name": "金",
+   "start": 1115,
+   "end": 1234,
+   "color": "#d33682",
+   "alias": [
+    "金",
+    "金朝",
+    "完颜阿骨打",
+    "宋金"
+   ],
+   "chapterIds": [
+    "ch065",
+    "ch066"
+   ]
+  },
+  {
+   "id": "south-song",
+   "name": "南宋",
+   "start": 1127,
+   "end": 1279,
+   "color": "#b58900",
+   "alias": [
+    "南宋",
+    "偏安",
+    "宋金和战"
+   ],
+   "chapterIds": [
+    "ch058",
+    "ch059"
+   ]
+  },
+  {
+   "id": "yuan",
+   "name": "元",
+   "start": 1271,
+   "end": 1368,
+   "color": "#2aa198",
+   "alias": [
+    "元",
+    "元朝",
+    "蒙古",
+    "忽必烈",
+    "八思巴",
+    "马可·波罗"
+   ],
+   "chapterIds": [
+    "ch069",
+    "ch070",
+    "ch071",
+    "ch072",
+    "ch073",
+    "ch074",
+    "ch075"
+   ]
+  },
+  {
+   "id": "ming",
+   "name": "明",
+   "start": 1368,
+   "end": 1644,
+   "color": "#859900",
+   "alias": [
+    "明",
+    "明朝",
+    "明代",
+    "明太祖",
+    "永乐",
+    "郑和",
+    "张居正",
+    "崇祯",
+    "王阳明"
+   ],
+   "chapterIds": [
+    "ch076",
+    "ch077",
+    "ch078",
+    "ch079",
+    "ch080",
+    "ch081",
+    "ch082",
+    "ch083",
+    "ch084",
+    "ch085",
+    "ch086",
+    "ch087",
+    "ch088"
+   ]
+  },
+  {
+   "id": "qing",
+   "name": "清",
+   "start": 1644,
+   "end": 1912,
+   "color": "#268bd2",
+   "alias": [
+    "清",
+    "清朝",
+    "清代",
+    "康熙",
+    "雍正",
+    "乾隆",
+    "鸦片",
+    "太平天国",
+    "甲午"
+   ],
+   "chapterIds": [
+    "ch089",
+    "ch090",
+    "ch091",
+    "ch092",
+    "ch093",
+    "ch094",
+    "ch095",
+    "ch096",
+    "ch097",
+    "ch098",
+    "ch099",
+    "ch100"
+   ]
+  }
+ ],
+ "chapterDynasty": {
+  "ch001": "prehistoric",
+  "ch002": "prehistoric",
+  "ch003": "prehistoric",
+  "ch004": "prehistoric",
+  "ch005": "prehistoric",
+  "ch006": "xia",
+  "ch007": "shang",
+  "ch008": "shang",
+  "ch009": "west-zhou",
+  "ch010": "west-zhou",
+  "ch011": "west-zhou",
+  "ch012": "spring-autumn",
+  "ch013": "spring-autumn",
+  "ch014": "warring-states",
+  "ch015": "warring-states",
+  "ch016": "warring-states",
+  "ch017": "warring-states",
+  "ch018": "qin",
+  "ch019": "qin",
+  "ch020": "west-han",
+  "ch021": "west-han",
+  "ch022": "west-han",
+  "ch023": "west-han",
+  "ch024": "west-han",
+  "ch025": "xin",
+  "ch026": "east-han",
+  "ch027": "west-han",
+  "ch028": "east-han",
+  "ch029": "east-han",
+  "ch030": "three-kingdoms",
+  "ch031": "three-kingdoms",
+  "ch032": "west-jin",
+  "ch033": "west-jin",
+  "ch034": "east-jin",
+  "ch035": "north-south",
+  "ch036": "north-south",
+  "ch037": "north-south",
+  "ch038": "north-south",
+  "ch039": "east-jin",
+  "ch040": "sui",
+  "ch041": "sui",
+  "ch042": "tang",
+  "ch043": "tang",
+  "ch044": "tang",
+  "ch045": "tang",
+  "ch046": "tang",
+  "ch047": "tang",
+  "ch048": "tang",
+  "ch049": "tang",
+  "ch050": "tang",
+  "ch051": "tang",
+  "ch052": "five-dynasties",
+  "ch053": "north-song",
+  "ch054": "north-song",
+  "ch055": "north-song",
+  "ch056": "north-song",
+  "ch057": "north-song",
+  "ch058": "south-song",
+  "ch059": "south-song",
+  "ch060": "north-song",
+  "ch061": "north-song",
+  "ch062": "north-song",
+  "ch063": "liao",
+  "ch064": "liao",
+  "ch065": "jin",
+  "ch066": "jin",
+  "ch067": "liao",
+  "ch068": "west-xia",
+  "ch069": "yuan",
+  "ch070": "yuan",
+  "ch071": "yuan",
+  "ch072": "yuan",
+  "ch073": "yuan",
+  "ch074": "yuan",
+  "ch075": "yuan",
+  "ch076": "ming",
+  "ch077": "ming",
+  "ch078": "ming",
+  "ch079": "ming",
+  "ch080": "ming",
+  "ch081": "ming",
+  "ch082": "ming",
+  "ch083": "ming",
+  "ch084": "ming",
+  "ch085": "ming",
+  "ch086": "ming",
+  "ch087": "ming",
+  "ch088": "ming",
+  "ch089": "qing",
+  "ch090": "qing",
+  "ch091": "qing",
+  "ch092": "qing",
+  "ch093": "qing",
+  "ch094": "qing",
+  "ch095": "qing",
+  "ch096": "qing",
+  "ch097": "qing",
+  "ch098": "qing",
+  "ch099": "qing",
+  "ch100": "qing"
+ }
+}

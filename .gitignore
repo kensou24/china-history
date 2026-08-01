@@ -2,10 +2,8 @@
 *.epub
 
 # 生成数据与图片（可由 scripts/ 重新生成）
-data/
-web/public/data/
-web/public/images/
-web/public/images_orig/
+# 注：web/public/ 下的同步副本已入库（部署用），此处只忽略管线源头 data/（锚定根目录）
+/data/
 
 # Node
 node_modules/
