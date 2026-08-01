@@ -26,6 +26,7 @@ const { meta, loadMeta, chapterById, dynastyById, error: metaError } = useMeta()
 
 const chapter = ref(null)
 const volData = ref(null)
+const currentVol = ref(0)
 const loading = ref(true)
 const error = ref(null)
 const notFound = ref(false)
@@ -33,6 +34,8 @@ const lightbox = ref({ src: '', caption: '', visible: false })
 const scrollEl = ref(null)
 const scrollPct = ref(0)
 const imageLoaded = ref({})
+const slideDir = ref('next')
+const slideName = computed(() => 'slide-' + slideDir.value)
 
 // 当前章节在全书中的位置（上一章 / 下一章）
 const all = computed(() =>
@@ -48,7 +51,6 @@ const dynasty = computed(() =>
 )
 
 async function loadChapter() {
-  loading.value = true
   error.value = null
   notFound.value = false
   imageLoaded.value = {}
@@ -58,16 +60,19 @@ async function loadChapter() {
     const ch = chapterById(route.params.id)
     if (!ch) {
       notFound.value = true
-      loading.value = false
       return
     }
-    chapter.value = ch
     const volId = meta.value.volumes.findIndex((v) =>
       v.chapters.some((c) => c.id === ch.id),
     ) + 1
-    volData.value = await loadVolume(volId)
+    // 同卷内翻章不闪 loading，章节内容直接带方向过渡切换
+    if (currentVol.value !== volId) {
+      loading.value = true
+      volData.value = await loadVolume(volId)
+      currentVol.value = volId
+    }
     const vc = volData.value.chapters.find((c) => c.id === ch.id)
-    chapter.value.blocks = vc.blocks
+    chapter.value = { ...ch, blocks: vc.blocks }
   } catch (e) {
     error.value = e.message || '章节加载失败'
   } finally {
@@ -112,27 +117,59 @@ function onScroll() {
 
 watch(
   () => route.params.id,
-  () => {
-    loadChapter().then(() => {
-      if (scrollEl.value) scrollEl.value.scrollTop = 0
-      restoreScroll()
-    })
+  (newId, oldId) => {
+    // 比较新旧章节序号决定过渡方向：往后翻从右滑入，往前翻从左滑入
+    const ni = all.value.findIndex((c) => c.id === newId)
+    const oi = all.value.findIndex((c) => c.id === oldId)
+    slideDir.value = oi === -1 || ni >= oi ? 'next' : 'prev'
+    loadChapter()
   },
 )
 
-watch(loading, (v) => {
-  if (!v && chapter.value) {
-    scrollPct.value = progress.chapters[chapter.value.id] || 0
+// 正文容器每次随过渡重建：统一在此重挂滚动监听、恢复进度、启动浮现观察
+watch(
+  scrollEl,
+  (el, oldEl) => {
+    if (oldEl) oldEl.removeEventListener('scroll', onScroll)
+    if (!el) return
+    el.addEventListener('scroll', onScroll, { passive: true })
+    scrollPct.value = chapter.value ? progress.chapters[chapter.value.id] || 0 : 0
     restoreScroll()
-  }
-})
+    setupReveal()
+  },
+  { flush: 'post' },
+)
+
+// ---- 段落逐段浮现 ----
+let revealObserver = null
+
+function setupReveal() {
+  revealObserver?.disconnect()
+  revealObserver = null
+  if (reducedMotion()) return
+  const root = scrollEl.value
+  if (!root) return
+  revealObserver = new IntersectionObserver(
+    (entries) => {
+      for (const en of entries) {
+        if (en.isIntersecting) {
+          en.target.classList.add('revealed')
+          revealObserver.unobserve(en.target)
+        }
+      }
+    },
+    { root, rootMargin: '0px 0px -6% 0px', threshold: 0.05 },
+  )
+  root.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el))
+}
+
+// 首屏几个块级联入场（stagger），后续滚动即时浮现
+function revealStyle(i) {
+  return i < 6 ? { transitionDelay: `${i * 45}ms` } : undefined
+}
 
 onMounted(() => {
-  loadChapter().then(() => {
-    if (scrollEl.value) {
-      scrollEl.value.addEventListener('scroll', onScroll, { passive: true })
-    }
-  })
+  loadChapter()
   window.addEventListener('keydown', onWindowKey)
 })
 
@@ -140,6 +177,7 @@ onUnmounted(() => {
   if (scrollEl.value) {
     scrollEl.value.removeEventListener('scroll', onScroll)
   }
+  revealObserver?.disconnect()
   window.removeEventListener('keydown', onWindowKey)
 })
 
@@ -217,12 +255,14 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
     <router-link to="/catalog">返回全书目录</router-link>
   </div>
 
-  <div v-else-if="chapter" class="reader">
-    <!-- 阅读进度条 -->
-    <div class="read-progress" aria-label="本章阅读进度" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(scrollPct)">
+  <template v-else>
+    <!-- 阅读进度条（放在过渡容器外，避免 transform 使 fixed 定位失效） -->
+    <div v-if="chapter" class="read-progress" aria-label="本章阅读进度" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(scrollPct)">
       <div :style="{ width: scrollPct + '%' }" />
     </div>
 
+    <Transition :name="slideName" mode="out-in">
+    <div v-if="chapter" :key="chapter.id" class="reader">
     <!-- 顶部章节信息 -->
     <div class="reader-head">
       <div class="crumb">
@@ -263,9 +303,9 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
       :style="{ fontSize: settings.fontSize + 'px', lineHeight: settings.lineHeight }"
     >
       <template v-for="(b, i) in chapter.blocks" :key="i">
-        <h3 v-if="b.t === 'sec'" class="block-sec">{{ b.title }}</h3>
-        <p v-else-if="b.t === 'p'" class="block-p">{{ b.text }}</p>
-        <figure v-else-if="b.t === 'fig'" class="block-fig">
+        <h3 v-if="b.t === 'sec'" class="block-sec reveal" :style="revealStyle(i)">{{ b.title }}</h3>
+        <p v-else-if="b.t === 'p'" class="block-p reveal" :style="revealStyle(i)">{{ b.text }}</p>
+        <figure v-else-if="b.t === 'fig'" class="block-fig reveal" :style="revealStyle(i)">
           <img
             loading="lazy"
             :src="`/images/${b.img}.webp`"
@@ -276,10 +316,10 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
           />
           <figcaption v-if="b.caption">{{ b.caption }}</figcaption>
         </figure>
-        <p v-else-if="b.t === 'cap'" class="block-cap">{{ b.text }}</p>
+        <p v-else-if="b.t === 'cap'" class="block-cap reveal" :style="revealStyle(i)">{{ b.text }}</p>
       </template>
 
-      <div class="chapter-end">— 本章完 —</div>
+      <div class="chapter-end reveal">— 本章完 —</div>
     </article>
 
     <!-- 上下章导航 -->
@@ -295,7 +335,9 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
       </router-link>
       <span v-else class="nav-item empty">已是最后一章</span>
     </nav>
-  </div>
+    </div>
+    </Transition>
+  </template>
 
   <Lightbox
     :src="lightbox.src"
@@ -430,6 +472,46 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   margin: 0 0 1em;
   text-indent: 2em;
   text-align: justify;
+}
+
+/* 段落滚动浮现：占位不变（transform + opacity），滚动时无重排 */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+.reveal.revealed {
+  opacity: 1;
+  transform: none;
+}
+
+/* 章节方向过渡：下一章从右入/向左出，上一章反向 */
+.slide-next-enter-active,
+.slide-next-leave-active,
+.slide-prev-enter-active,
+.slide-prev-leave-active {
+  transition: opacity 0.26s ease, transform 0.26s ease;
+}
+
+.slide-next-enter-from {
+  opacity: 0;
+  transform: translateX(56px);
+}
+
+.slide-next-leave-to {
+  opacity: 0;
+  transform: translateX(-56px);
+}
+
+.slide-prev-enter-from {
+  opacity: 0;
+  transform: translateX(-56px);
+}
+
+.slide-prev-leave-to {
+  opacity: 0;
+  transform: translateX(56px);
 }
 
 .block-sec {
@@ -570,6 +652,20 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
   .block-fig img {
     transition: none;
     opacity: 1;
+  }
+
+  /* 减少动态时段落直接显示（JS 侧也不会启动观察器） */
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .slide-next-enter-active,
+  .slide-next-leave-active,
+  .slide-prev-enter-active,
+  .slide-prev-leave-active {
+    transition: none;
   }
 }
 </style>

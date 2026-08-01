@@ -33,6 +33,7 @@ function scaleYear(y) {
 const view = ref({ start: T_PRE_START, end: T_LIN_END })
 const targetView = ref(null)
 let animId = null
+let flightTimer = null
 
 function reducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -43,6 +44,7 @@ function easeInOutCubic(t) {
 }
 
 function setView(v, animate = true, dur = 350) {
+  clearTimeout(flightTimer)
   targetView.value = { ...v }
   cancelAnimationFrame(animId)
   if (!animate || reducedMotion()) {
@@ -145,6 +147,28 @@ function zoomIn() {
 
 function zoomOut() {
   zoom(1 / 0.6)
+}
+
+// 搜索镜头飞行：先拉远到同时容纳当前与目标的视野，再推近到目标；
+// 目标本就在视野附近时直接缓动，不做无谓的拉远
+function flyTo(target) {
+  if (reducedMotion()) {
+    setView(target, false)
+    return
+  }
+  const from = targetView.value || view.value
+  const unionSpan = Math.max(from.end, target.end) - Math.min(from.start, target.start)
+  const pad = Math.max(30, unionSpan * 0.08)
+  const mid = {
+    start: Math.max(T_PRE_START, Math.min(from.start, target.start) - pad),
+    end: Math.min(T_LIN_END, Math.max(from.end, target.end) + pad),
+  }
+  if ((mid.end - mid.start) / (from.end - from.start) < 1.15) {
+    setView(target, true, 450)
+    return
+  }
+  setView(mid, true, 300)
+  flightTimer = setTimeout(() => setView(target, true, 380), 290)
 }
 
 function resetView() {
@@ -252,6 +276,7 @@ function midYear(p1, p2) {
 function onPointerDown(e) {
   if (!svgRef.value) return
   cancelAnimationFrame(animId)
+  clearTimeout(flightTimer)
   stopMomentum()
   lastMoveT = 0
   lastMoveX = e.clientX
@@ -453,7 +478,7 @@ watch(
     if (hit) {
       matchedDynasty.value = hit.id
       const pad = Math.max(40, (hit.end - hit.start) * 0.3)
-      setView({
+      flyTo({
         start: Math.max(T_PRE_START, hit.start - pad),
         end: Math.min(T_LIN_END, hit.end + pad),
       })
@@ -484,6 +509,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKey)
   cancelAnimationFrame(animId)
+  clearTimeout(flightTimer)
   stopMomentum()
 })
 
