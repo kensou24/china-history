@@ -1,13 +1,27 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
-defineProps({
+const props = defineProps({
   src: { type: String, required: true },
+  imgId: { type: String, default: '' },
   caption: { type: String, default: '' },
   visible: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['close'])
+const currentSrc = ref(props.src)
+
+// 原图加载失败 → 回退缩略图
+function onImgError() {
+  if (props.imgId) currentSrc.value = `/images/${props.imgId}.webp`
+}
+
+watch(
+  () => props.src,
+  (s) => {
+    currentSrc.value = s
+  },
+)
 
 function onKey(e) {
   if (e.key === 'Escape') emit('close')
@@ -19,7 +33,7 @@ function onKey(e) {
     <Transition name="fade">
       <div v-if="visible" class="lightbox" @click.self="emit('close')" @keydown="onKey">
         <button class="close-btn" @click="emit('close')">✕</button>
-        <img :src="src" :alt="caption" />
+        <img :src="currentSrc" :alt="caption" @error="onImgError" />
         <p v-if="caption" class="caption">{{ caption }}</p>
       </div>
     </Transition>

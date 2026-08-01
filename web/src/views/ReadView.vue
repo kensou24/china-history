@@ -88,6 +88,7 @@ onUnmounted(() => {
 function openLightbox(imgId, caption) {
   lightbox.value = {
     src: `/images_orig/${imgId}.jpeg`,
+    imgId,
     caption,
     visible: true,
   }
@@ -173,6 +174,7 @@ const formatYear = (y) => (y < 0 ? `前${-y}` : `${y}`)
 
   <Lightbox
     :src="lightbox.src"
+    :img-id="lightbox.imgId"
     :caption="lightbox.caption"
     :visible="lightbox.visible"
     @close="lightbox.visible = false"
