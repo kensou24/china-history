@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { assetUrl } from '@/utils'
 
 // meta.json / dynasties.json 全局只加载一次
 const meta = ref(null)
@@ -32,11 +33,11 @@ export function useMeta() {
     // cache: no-cache → 每次加载都向服务器重新校验（ETag 未变返回 304），
     // 解决静态 JSON 文件名固定、部署更新后拿到旧缓存的问题
     inflight = Promise.all([
-      fetch('/data/meta.json', { cache: 'no-cache' }).then((r) => {
+      fetch(assetUrl('/data/meta.json'), { cache: 'no-cache' }).then((r) => {
         if (!r.ok) throw new Error(`meta.json ${r.status}`)
         return r.json()
       }),
-      fetch('/data/dynasties.json', { cache: 'no-cache' }).then((r) => {
+      fetch(assetUrl('/data/dynasties.json'), { cache: 'no-cache' }).then((r) => {
         if (!r.ok) throw new Error(`dynasties.json ${r.status}`)
         return r.json()
       }),

@@ -7,3 +7,6 @@ export const yearLabel = (y) => (y < 0 ? `前${-y}` : `${y}`)
 export function reducedMotion() {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
+
+// 静态资源路径：拼接 Vite base（部署到子路径如 /china-history/ 时自动带前缀）
+export const assetUrl = (p) => import.meta.env.BASE_URL + p.replace(/^\//, '')

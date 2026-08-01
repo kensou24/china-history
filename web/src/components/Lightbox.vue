@@ -1,6 +1,7 @@
 <script setup>
 import { nextTick, ref, watch } from 'vue'
 import { useToast } from '@/composables/useToast'
+import { assetUrl } from '@/utils'
 
 const props = defineProps({
   src: { type: String, required: true },
@@ -19,7 +20,7 @@ let lastFocused = null
 // 原图加载失败 → 回退缩略图
 function onImgError() {
   if (props.imgId) {
-    currentSrc.value = `/images/${props.imgId}.webp`
+    currentSrc.value = assetUrl(`/images/${props.imgId}.webp`)
     toast('原图加载失败，已显示缩略图')
   }
 }

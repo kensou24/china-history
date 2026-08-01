@@ -17,7 +17,7 @@ import Lightbox from '@/components/Lightbox.vue'
 import AppLoading from '@/components/AppLoading.vue'
 import BackToTop from '@/components/BackToTop.vue'
 import DynastyRail from '@/components/DynastyRail.vue'
-import { yearLabel, reducedMotion } from '@/utils'
+import { yearLabel, reducedMotion, assetUrl } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -233,7 +233,7 @@ function onImageLoad(imgId) {
 
 function openLightbox(imgId, caption) {
   lightbox.value = {
-    src: `/images_orig/${imgId}.jpeg`,
+    src: assetUrl(`/images_orig/${imgId}.jpeg`),
     imgId,
     caption,
     visible: true,
@@ -357,7 +357,7 @@ function onWindowKey(e) {
         <figure v-else-if="b.t === 'fig'" class="block-fig reveal" :style="revealStyle(i)">
           <img
             loading="lazy"
-            :src="`/images/${b.img}.webp`"
+            :src="assetUrl(`/images/${b.img}.webp`)"
             :alt="b.caption"
             :class="{ loaded: imageLoaded[b.img] }"
             @click="openLightbox(b.img, b.caption)"

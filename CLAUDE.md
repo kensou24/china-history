@@ -26,6 +26,11 @@ npm run build      # 产物 web/dist（部署前须先 sync_web_assets）
 
 没有 lint / 单元测试配置；`validate.py` 是唯一的数据校验手段。改动数据管线后跑一遍它。
 
+## 部署
+
+GitHub Actions（`.github/workflows/deploy.yml`）：push 到 main 自动 `npm ci && npm run build`（web/）并发布到 GitHub Pages，线上地址 `https://kensou24.github.io/china-history/`。
+**vite `base` 构建时为 `/china-history/`**（dev 为 `/`）：代码里引用静态资源/数据必须走 `utils/assetUrl()`（拼 `import.meta.env.BASE_URL`），不要手写 `/` 开头的绝对路径。
+
 ## 架构总览
 
 ### 单向数据流
