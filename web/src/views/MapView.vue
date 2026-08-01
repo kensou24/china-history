@@ -7,6 +7,12 @@ import AppLoading from '@/components/AppLoading.vue'
 import AtlasMap from '@/components/AtlasMap.vue'
 import MapTimeBar from '@/components/MapTimeBar.vue'
 import MapDynastyCard from '@/components/MapDynastyCard.vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useProgressStore } from '@/stores/progress'
+
+const route = useRoute()
+const router = useRouter()
+const progress = useProgressStore()
 
 const { loadMeta, dynasties, dynastyById, chapterById } = useMeta()
 const { data, error, loadMap, activeShapes, shapesByDynasty, yearOf } = useMapData()
@@ -52,12 +58,49 @@ async function init() {
   loading.value = true
   try {
     await Promise.all([loadMeta(), loadMap()])
+    initState()
   } catch {
     /* error 已写入 composable */
   } finally {
     loading.value = false
+    urlReady = true
   }
 }
+
+// 初始状态：URL query > 最近阅读朝代 > 默认（year 模式，前 221 年）
+function initState() {
+  const qd = typeof route.query.d === 'string' ? route.query.d : null
+  const qy = Number(route.query.y)
+  if (qd && dynastyById(qd)) {
+    selectDynasty(qd)
+    return
+  }
+  const ys = data.value.changeYears
+  if (Number.isFinite(qy) && ys.length && qy >= ys[0] && qy <= ys[ys.length - 1]) {
+    mode.value = 'year'
+    year.value = qy
+    return
+  }
+  const lastDyn = progress.lastRead ? chapterById(progress.lastRead)?.dynasty : null
+  if (lastDyn && dynastyById(lastDyn) && mappedIds.value.has(lastDyn)) {
+    selectDynasty(lastDyn)
+    return
+  }
+  // 否则保持默认：year 模式，秦朝代表年（Cliopatria 秦首个几何快照为 -218，
+  // -221 仅见战国末年；用 dynastyMap.qin.year 落地即见秦朝疆域）
+  year.value = yearOf('qin') ?? -221
+}
+
+// ---- URL 状态同步（router.replace，不污染历史）----
+let urlReady = false
+watch([mode, year, selectedDynasty], () => {
+  if (!urlReady) return
+  const query =
+    mode.value === 'dynasty' && selectedDynasty.value
+      ? { d: selectedDynasty.value }
+      : { y: String(year.value) }
+  router.replace({ query })
+})
 
 // 选朝代（chips / 地图点击）→ dynasty 模式：跳代表年、飞镜头、右侧信息卡
 function selectDynasty(id) {
