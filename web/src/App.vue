@@ -1,10 +1,12 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import { useProgressStore } from '@/stores/progress'
 import { useToast } from '@/composables/useToast'
 import { reducedMotion } from '@/utils'
 
+const route = useRoute()
 const settings = useSettingsStore()
 const progress = useProgressStore()
 const { toasts } = useToast()
@@ -103,7 +105,7 @@ onUnmounted(() => {
     </div>
   </header>
 
-  <main class="app-main">
+  <main class="app-main" :class="{ 'read-wide': route.name === 'read' }">
     <router-view v-slot="{ Component }">
       <Transition name="page" mode="out-in">
         <component :is="Component" />

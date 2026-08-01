@@ -201,6 +201,11 @@ input:focus-visible,
   padding: 24px;
 }
 
+/* 阅读页加宽：容纳右侧小节 TOC 栏 */
+.app-main.read-wide {
+  max-width: 1400px;
+}
+
 /* 主题切换按钮组 */
 .theme-switch {
   display: flex;

@@ -17,6 +17,7 @@ import Lightbox from '@/components/Lightbox.vue'
 import AppLoading from '@/components/AppLoading.vue'
 import BackToTop from '@/components/BackToTop.vue'
 import DynastyRail from '@/components/DynastyRail.vue'
+import ChapterToc from '@/components/ChapterToc.vue'
 import { yearLabel, reducedMotion, assetUrl } from '@/utils'
 
 const route = useRoute()
@@ -49,6 +50,14 @@ function onNarrowChange(e) {
   if (!e.matches) drawerOpen.value = false
 }
 
+// ---- 宽屏章内小节 TOC（≥1280px 显示右侧栏） ----
+const canToc = ref(window.matchMedia('(min-width: 1280px)').matches)
+let wideMq = null
+
+function onWideChange(e) {
+  canToc.value = e.matches
+}
+
 watch(drawerOpen, (v) => {
   document.body.style.overflow = v ? 'hidden' : ''
 })
@@ -70,6 +79,43 @@ const dynasty = computed(() =>
 const readMinutes = computed(() =>
   chapter.value ? Math.max(1, Math.ceil(chapter.value.wordCount / 400)) : 0,
 )
+
+// ---- 章内小节 TOC ----
+const tocItems = computed(() =>
+  chapter.value
+    ? chapter.value.blocks
+        .map((b, i) => (b.t === 'sec' ? { title: b.title, blockIndex: i } : null))
+        .filter(Boolean)
+    : [],
+)
+const activeToc = ref(-1)
+
+// scroll spy：高亮最后一个越过容器顶部（+80px 缓冲）的小节
+function updateTocSpy() {
+  const el = scrollEl.value
+  if (!el || !tocItems.value.length) {
+    activeToc.value = -1
+    return
+  }
+  const secs = el.querySelectorAll('.block-sec')
+  let cur = -1
+  for (let i = 0; i < secs.length; i++) {
+    if (secs[i].offsetTop <= el.scrollTop + 80) cur = i
+    else break
+  }
+  activeToc.value = cur
+}
+
+function jumpToSection(s) {
+  const el = scrollEl.value
+  if (!el) return
+  const target = el.querySelector(`[data-i="${s.blockIndex}"]`)
+  if (!target) return
+  el.scrollTo({
+    top: target.offsetTop - 12,
+    behavior: reducedMotion() ? 'auto' : 'smooth',
+  })
+}
 
 // 加载序号：慢网络下跨卷快速翻章时，丢弃过期请求的结果，避免旧章覆盖新章
 let loadSeq = 0
@@ -160,6 +206,7 @@ function onScroll() {
     rafId = requestAnimationFrame(() => {
       rafId = null
       scrollPct.value = currentPct()
+      updateTocSpy()
     })
   }
   clearTimeout(recordTimer)
@@ -195,6 +242,7 @@ watch(
     el.addEventListener('scroll', onScroll, { passive: true })
     scrollPct.value = chapter.value ? progress.chapters[chapter.value.id] || 0 : 0
     restoreScroll()
+    updateTocSpy()
     setupReveal()
   },
   { flush: 'post' },
@@ -233,6 +281,8 @@ onMounted(() => {
   window.addEventListener('keydown', onWindowKey)
   narrowMq = window.matchMedia('(max-width: 1099px)')
   narrowMq.addEventListener('change', onNarrowChange)
+  wideMq = window.matchMedia('(min-width: 1280px)')
+  wideMq.addEventListener('change', onWideChange)
 })
 
 onUnmounted(() => {
@@ -244,6 +294,7 @@ onUnmounted(() => {
   revealObserver?.disconnect()
   window.removeEventListener('keydown', onWindowKey)
   narrowMq?.removeEventListener('change', onNarrowChange)
+  wideMq?.removeEventListener('change', onWideChange)
   document.body.style.overflow = ''
 })
 
@@ -373,7 +424,7 @@ function onWindowKey(e) {
       :style="{ fontSize: settings.fontSize + 'px', lineHeight: settings.lineHeight }"
     >
       <template v-for="(b, i) in chapter.blocks" :key="i">
-        <h3 v-if="b.t === 'sec'" class="block-sec reveal" :style="revealStyle(i)">{{ b.title }}</h3>
+        <h3 v-if="b.t === 'sec'" class="block-sec reveal" :data-i="i" :style="revealStyle(i)">{{ b.title }}</h3>
         <p v-else-if="b.t === 'p'" class="block-p reveal" :style="revealStyle(i)">{{ b.text }}</p>
         <figure v-else-if="b.t === 'fig'" class="block-fig reveal" :style="revealStyle(i)">
           <img
@@ -408,6 +459,13 @@ function onWindowKey(e) {
     </div>
     </Transition>
       </div>
+
+      <ChapterToc
+        v-if="chapter && canToc && tocItems.length"
+        :items="tocItems"
+        :active="activeToc"
+        @jump="jumpToSection"
+      />
     </div>
 
     <!-- 窄屏：浮动朝代按钮 + 抽屉式导航 -->
