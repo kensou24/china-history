@@ -1,9 +1,10 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
-import HomeView from '@/views/HomeView.vue'
-import CatalogView from '@/views/CatalogView.vue'
-import ReadView from '@/views/ReadView.vue'
 
 // hash 模式：纯静态部署（GitHub Pages 等）无需服务器重写
+// 视图动态导入：按路由分包，首屏只下载当前页的代码
+const HomeView = () => import('@/views/HomeView.vue')
+const CatalogView = () => import('@/views/CatalogView.vue')
+const ReadView = () => import('@/views/ReadView.vue')
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
