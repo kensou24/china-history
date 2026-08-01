@@ -15,6 +15,7 @@ python3 scripts/extract.py           # EPUB → data/meta.json + vol1..5.json
 python3 scripts/images.py            # 插图 → data/images（WebP 缩略图）+ images_orig（原图）
 python3 scripts/dynasty.py           # 朝代标注 → data/dynasties.json（并回写 meta.json 的 dynasty 字段）
 python3 scripts/validate.py          # 数据完整性校验（应输出 0 错误）
+python3 scripts/map.py             # Cliopatria+NaturalEarth → data/map.json（需先按 docs/superpowers/plans/2026-08-01-atlas-map.md Task 1 下载 raw/ 数据）
 python3 scripts/sync_web_assets.py   # data/ → web/public/（--skip-orig 跳过原图）
 
 # 前端（Node ≥ 18，web/ 目录）
@@ -39,10 +40,11 @@ GitHub Actions（`.github/workflows/deploy.yml`）：push 到 main 自动 `npm c
 
 ### 前端（Vite + Vue 3 `<script setup>` + Vue Router 4 hash 模式 + Pinia）
 - **hash 路由是有意的**：静态托管无需服务端 rewrite，不要改成 history 模式。
-- 三条路由：`/` 时间轴首页（HomeView + DynastyTimeline）、`/catalog` 目录、`/read/:id` 阅读器。
+- 四条路由：`/` 时间轴首页（HomeView + DynastyTimeline）、`/catalog` 目录、`/read/:id` 阅读器、`/map` 疆域时空地图。
 - **数据缓存模型**（`composables/`）：
   - `useMeta.js`：meta.json + dynasties.json，模块级单例，全站只加载一次；暴露 `meta / dynasties / chapterById / dynastyById`。
   - `useVolume.js`：volN.json 按卷懒加载 + Map 缓存。ReadView 用 `currentVol` 记住当前卷，**同卷翻章不再触发 loading**——跨卷才显示加载态。
+  - `useMapData.js`：map.json（疆域 SVG path 静态数据），模块级单例；暴露 `activeShapes(year) / shapesByDynasty(id) / yearOf(id)`。
 - **用户状态**（localStorage，键名带 `zgts:` 前缀）：`stores/progress.js`（`zgts:progress`，每章 0-100 进度 + lastRead，≥98 判读完）、`stores/settings.js`（`zgts:settings`，字号/行距/主题/railCollapsed）。新增偏好字段时注意从 `saved` 读取要给默认值。
 - 无 UI 组件库、无 TypeScript，全局样式在 `web/src/style.css`，主题用 CSS 变量 + `body[data-theme]` 切换。
 

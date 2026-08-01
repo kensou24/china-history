@@ -228,6 +228,12 @@ onUnmounted(() => clearInterval(playTimer))
           :neutral="neutralShape"
         />
       </div>
+
+      <p class="attribution">
+        疆域数据 © <a href="https://github.com/Seshat-Global-History-Databank/cliopatria" target="_blank" rel="noopener">Cliopatria</a>（CC BY 4.0）·
+        底图 <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener">Natural Earth</a>（公有领域）·
+        疆域为学术数据集近似示意，不代表现代国界
+      </p>
     </template>
   </div>
 </template>
@@ -320,6 +326,12 @@ onUnmounted(() => clearInterval(playTimer))
   font-size: 13px;
   color: var(--text-soft);
   text-align: center;
+}
+
+.attribution {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--text-soft);
 }
 
 @media (max-width: 1099px) {
