@@ -98,6 +98,7 @@ onUnmounted(() => {
     <nav class="app-nav">
       <router-link to="/">朝代时间轴</router-link>
       <router-link to="/catalog">全书目录</router-link>
+      <router-link to="/map">疆域地图</router-link>
     </nav>
     <div class="spacer" />
     <div class="theme-switch" title="阅读主题" role="group" aria-label="阅读主题">
@@ -113,7 +114,7 @@ onUnmounted(() => {
     </div>
   </header>
 
-  <main class="app-main" :class="{ 'read-wide': route.name === 'read' }">
+  <main class="app-main" :class="{ 'read-wide': route.name === 'read' || route.name === 'map' }">
     <router-view v-slot="{ Component }">
       <Transition name="page" mode="out-in">
         <component :is="Component" />

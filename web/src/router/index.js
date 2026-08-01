@@ -5,12 +5,14 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 const HomeView = () => import('@/views/HomeView.vue')
 const CatalogView = () => import('@/views/CatalogView.vue')
 const ReadView = () => import('@/views/ReadView.vue')
+const MapView = () => import('@/views/MapView.vue')
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/', name: 'home', component: HomeView, meta: { title: '朝代时间轴' } },
     { path: '/catalog', name: 'catalog', component: CatalogView, meta: { title: '全书目录' } },
     { path: '/read/:id', name: 'read', component: ReadView, meta: { title: '阅读' } },
+    { path: '/map', name: 'map', component: MapView, meta: { title: '疆域地图' } },
   ],
   scrollBehavior(to, from, saved) {
     return saved || { top: 0 }
