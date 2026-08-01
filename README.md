@@ -70,6 +70,10 @@ push 到 `main` 即自动执行 `npm ci && npm run build`（web/）并发布到 
 `volN.json` 章节 `blocks` 元素类型：`p`（正文段）、`sec`（小节标题）、`fig`（插图，`img` 为图片 id）、`cap`（独立图注）。
 图片路径：`/images/{id}.webp`（缩略图）、`/images_orig/{id}.jpeg`（原图）。
 
+### 疆域地图数据
+
+`/map` 疆域时空地图的政权边界来自 [Cliopatria](https://github.com/Seshat-Global-History-Databank/cliopatria)（CC BY 4.0，Seshat Global History Databank），底图海岸线/河流来自 [Natural Earth](https://www.naturalearthdata.com/)（公有领域）。由 `scripts/map.py` 离线烘焙为静态 JSON，疆域为学术数据集近似示意，不代表现代国界。
+
 ## ⚠️ 免责声明
 
 1. 本项目为**个人学习与技术研究**目的创建，仅供学习交流使用，**不用于任何商业用途**。

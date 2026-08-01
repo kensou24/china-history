@@ -14,3 +14,6 @@ dist/
 .DS_Store
 __pycache__/
 *.pyc
+
+# 地图原始数据（Cliopatria / Natural Earth，手动下载，不入库）
+/raw/

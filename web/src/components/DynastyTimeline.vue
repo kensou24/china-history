@@ -6,6 +6,7 @@ import { yearLabel, reducedMotion } from '@/utils'
 const props = defineProps({
   dynasties: { type: Array, required: true },
   keyword: { type: String, default: '' },
+  focusDynasty: { type: String, default: '' }, // 地图页联动：选中并运镜到该朝代
 })
 
 const emit = defineEmits(['update:keyword'])
@@ -548,6 +549,24 @@ watch(
   },
 )
 
+// 地图页联动：/?d=xx 直接选中并运镜到该朝代（复用搜索飞行机制，不占搜索框）
+watch(
+  () => props.focusDynasty,
+  (id) => {
+    if (!id) return
+    const d = props.dynasties.find((x) => x.id === id)
+    if (!d) return
+    matchedDynasty.value = d.id
+    selected.value = d
+    const pad = Math.max(40, (d.end - d.start) * 0.3)
+    flyTo({
+      start: Math.max(T_PRE_START, d.start - pad),
+      end: Math.min(T_LIN_END, d.end + pad),
+    })
+  },
+  { immediate: true },
+)
+
 // 搜索是否命中
 const hasMatch = computed(() => {
   const q = props.keyword.trim()
@@ -823,6 +842,7 @@ const controlsVisible = computed(
       <h2>
         {{ selected.name }}（{{ yearLabel(selected.start) }}—{{ yearLabel(selected.end) }}）
         · {{ selected.chapterIds.length }} 章
+        <router-link class="atlas-link" :to="`/map?d=${selected.id}`">在疆域地图查看 →</router-link>
       </h2>
       <div class="chapter-grid">
         <router-link
@@ -1062,6 +1082,13 @@ const controlsVisible = computed(
 
 .hint.no-match {
   color: var(--accent-soft);
+}
+
+.atlas-link {
+  font-size: 13px;
+  font-weight: 400;
+  margin-left: 8px;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {
